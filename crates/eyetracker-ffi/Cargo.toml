@@ -3,6 +3,9 @@ name = "eyetracker-ffi"
 version = "0.1.0-alpha"
 edition = "2021"
 
+[features]
+cli = ["uniffi/cli"]
+
 [dependencies]
 eyetracker-domain = { path = "../eyetracker-domain" }
 eyetracker-core = { path = "../eyetracker-core" }
@@ -13,5 +16,15 @@ thiserror = { workspace = true }
 [lib]
 crate-type = ["cdylib", "staticlib", "rlib"]
 
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[package.metadata.docs.rs]
+all-features = true
+
 [build-dependencies]
 uniffi = { version = "0.27", features = ["build"] }
+
+[dev-dependencies]
+uniffi = { version = "0.27", features = ["cli", "bindgen"] }

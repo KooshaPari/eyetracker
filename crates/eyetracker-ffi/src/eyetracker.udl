@@ -43,7 +43,7 @@ interface Calibrator {
     // Accessors
     CalibrationState state();
     f64 accuracy();
-    sequence<record>? samples();
+    sequence<CalibrationSample>? samples();
 };
 
 // Helper record for returning sample pairs
