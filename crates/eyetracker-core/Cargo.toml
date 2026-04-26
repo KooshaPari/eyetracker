@@ -1,0 +1,14 @@
+[package]
+name = "eyetracker-core"
+version = "0.1.0-alpha"
+edition = "2021"
+
+[dependencies]
+eyetracker-domain = { path = "../eyetracker-domain" }
+eyetracker-math = { path = "../eyetracker-math" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[lib]
+name = "eyetracker_core"
+path = "src/lib.rs"

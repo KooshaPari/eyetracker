@@ -1,0 +1,17 @@
+[package]
+name = "eyetracker-ffi"
+version = "0.1.0-alpha"
+edition = "2021"
+
+[dependencies]
+eyetracker-domain = { path = "../eyetracker-domain" }
+eyetracker-core = { path = "../eyetracker-core" }
+uniffi = { version = "0.27", features = ["bindgen"] }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[build-dependencies]
+uniffi = { version = "0.27", features = ["build"] }

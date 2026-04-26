@@ -1,0 +1,68 @@
+// eyetracker.udl — UniFFI Interface Definition
+// Traces to: FR-EYE-INTEROP-001, FR-EYE-INTEROP-002, FR-EYE-INTEROP-003
+
+namespace eyetracker {
+    // Expose core types from domain crate
+    Point create_point(double x, double y);
+    GazeEstimate create_gaze_estimate(Point screen_pos, f64 confidence);
+    CalibrationState calibration_state_idle();
+    CalibrationState calibration_state_complete();
+};
+
+// Core domain types
+dictionary Point {
+    double x;
+    double y;
+};
+
+dictionary GazeEstimate {
+    Point screen_pos;
+    f64 confidence;
+};
+
+enum CalibrationState {
+    "Idle",
+    "Waiting",
+    "Sampling",
+    "Processing",
+    "Validating",
+    "Complete",
+    "Failed",
+};
+
+interface Calibrator {
+    // Constructor
+    [Name=new]
+    constructor();
+
+    // State machine: start -> record_sample (N times) -> finalize
+    void start_calibration();
+    void record_sample(Point eye_point, Point screen_target);
+    void finalize();
+
+    // Accessors
+    CalibrationState state();
+    f64 accuracy();
+    sequence<record>? samples();
+};
+
+// Helper record for returning sample pairs
+dictionary CalibrationSample {
+    Point eye_point;
+    Point screen_target;
+};
+
+interface GazeEstimator {
+    // Constructor with optional calibration
+    [Name=new]
+    constructor();
+
+    // Estimate gaze from raw eye position
+    GazeEstimate? estimate(Point raw_eye_position);
+
+    // Apply calibration matrix from Calibrator
+    void set_calibration(Calibrator calibrator);
+
+    // Smoothing filter control
+    void set_smoothing_enabled(boolean enabled);
+};

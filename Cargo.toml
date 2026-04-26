@@ -1,0 +1,12 @@
+[workspace]
+members = [
+  "crates/eyetracker-domain",
+  "crates/eyetracker-math",
+  "crates/eyetracker-core", "crates/eyetracker-ffi",
+]
+resolver = "2"
+
+[workspace.dependencies]
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.40", features = ["full"] }
