@@ -1,0 +1,16 @@
+# CODEOWNERS for this repository
+#
+# These owners will be the default owners for everything in
+# the repo. Unless a later match takes precedence,
+# they will be requested for review when someone opens a pull request.
+*       @KooshaPari
+
+# Workflow files require explicit review
+.github/workflows/    @KooshaPari
+.github/              @KooshaPari
+
+# Dependency manifests
+Cargo.toml            @KooshaPari
+Cargo.lock            @KooshaPari
+deny.toml             @KooshaPari
+package.json          @KooshaPari
