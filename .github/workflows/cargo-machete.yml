@@ -1,0 +1,18 @@
+name: cargo-machete
+
+on:
+  push:
+    branches: [main]
+    paths: ['Cargo.toml', '**/Cargo.toml']
+  pull_request:
+    paths: ['Cargo.toml', '**/Cargo.toml']
+  schedule:
+    - cron: '47 6 * * 4'  # weekly Thursday
+  workflow_dispatch:
+
+jobs:
+  machete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bnjbvr/cargo-machete@main
