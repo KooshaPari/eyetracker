@@ -1,0 +1,24 @@
+{
+  "name": "Phenotype-org Rust Dev",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/common-utils:2": { "installZsh": true }
+  },
+  "postCreateCommand": "rustup component add rustfmt clippy && cargo install --locked cargo-deny cargo-audit cargo-machete",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "vadimcn.vscode-lldb",
+        "usernamehw.errorlens"
+      ],
+      "settings": {
+        "[rust]": { "editor.formatOnSave": true },
+        "rust-analyzer.check.command": "clippy"
+      }
+    }
+  },
+  "remoteUser": "vscode"
+}
