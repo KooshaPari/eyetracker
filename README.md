@@ -7,6 +7,8 @@
 
 # eyetracker
 
+[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net)
+
 > Phenotype eye-tracking core — Rust crates for 9-point calibration, gaze
 > inference, fixation/saccade classification, and UniFFI bindings for
 > Swift / Kotlin hosts.
