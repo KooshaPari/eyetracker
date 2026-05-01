@@ -6,36 +6,27 @@ use std::io::Write;
 
 use anyhow::Result;
 use crossterm::{
-    event::{self, DisableBracketedPaste, DisableFocusChange, EnableBracketedPaste, EnableFocusChange, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
+    style::Style,
     text::{Line, Text},
     widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
 };
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
+use std::sync::{Arc, Mutex};
 
 use eyetracker_camera::{Camera, CameraConfig};
-use eyetracker_core::calibration::{Calibrator, CalibrationState};
+use eyetracker_core::{Calibrator, CalibrationState};
 use eyetracker_inference::{
-    pipeline::InferencePipeline,
-    processing::{preprocess_frame, PreprocessOptions},
+    preprocess_frame, InferencePipeline, PreprocessOptions,
 };
-use std::sync::{Arc, Mutex};
 use eyetracker_domain::Point;
-use eyetracker_inference::{
-    preprocess_frame, GazeEstimationResult, InferencePipeline, PreprocessOptions,
-};
-use ratatui::{backend::CrosstermBackend, layout::*, style::*, text::*, widgets::*, Terminal};
-use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 
 /// Calibration point
 #[derive(Debug, Clone)]
