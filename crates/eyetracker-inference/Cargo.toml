@@ -22,5 +22,8 @@ ndarray = "0.16"
 # Error handling
 anyhow = { workspace = true }
 
+# Directory utilities
+dirs = "6"
+
 [dev-dependencies]
 criterion = "0.5"
