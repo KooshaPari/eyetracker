@@ -1,7 +1,7 @@
 [package]
 name = "eyetracker-inference"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 description = "ML inference for eye tracking"
 license = "MIT"
 authors = ["Phenotype"]

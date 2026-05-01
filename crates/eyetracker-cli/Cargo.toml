@@ -20,6 +20,7 @@ eyetracker-math = { path = "../eyetracker-math" }
 serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # CLI
 clap = { workspace = true }

@@ -154,8 +154,8 @@ fn list_cameras() -> Result<()> {
                 println!("No cameras found");
             } else {
                 for cam in &cameras {
-                    println!("  [{}] {} ({})", cam.index, cam.name, cam.id);
-                    println!("      Supported resolutions: {:?}", cam.supported_formats.len());
+                    println!("  [{}] {}", cam.index, cam.name);
+                    println!("      Supported formats: {}", cam.supported_formats.join(", "));
                 }
             }
         }

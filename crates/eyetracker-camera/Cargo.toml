@@ -1,7 +1,7 @@
 [package]
 name = "eyetracker-camera"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 description = "High-performance webcam capture for eye tracking"
 license = "MIT"
 authors = ["Phenotype"]
@@ -13,9 +13,6 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
-# Camera capture
-nokhwa = { workspace = true }
-
 # Image processing
 image = { workspace = true }
 
@@ -25,7 +22,13 @@ poll-promise = { workspace = true }
 # Error handling
 anyhow = { workspace = true }
 
+# Video capture (cross-platform)
+# Camera capture
+ccap-rs = "1.6"
 [target.'cfg(target_os = "macos")'.dependencies]
-core-foundation = "0.9"
-objc2 = "0.6"
-mach2 = "0.5"
+# Metal for GPU-accelerated frame processing
+metal = "0.29"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Linux video capture
+v4l = "0.14"

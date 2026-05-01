@@ -44,38 +44,35 @@ impl Landmark {
     }
 }
 
-/// Types of facial landmarks
+/// Types of facial landmarks (MediaPipe Face Mesh indices)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[repr(u8)]
 pub enum LandmarkType {
     // Face contour (0-16)
     Chin = 152,
     LeftJaw = 234,
     RightJaw = 454,
-    // Eyes (17-68)
+    // Eyes (17-26)
     LeftEyeOuter = 33,
     LeftEyeInner = 133,
     RightEyeOuter = 362,
     RightEyeInner = 263,
     LeftEyeTop = 159,
     LeftEyeBottom = 145,
-    LeftEyeCenter = 468,
     RightEyeTop = 386,
     RightEyeBottom = 374,
-    RightEyeCenter = 473,
-    // Eyebrows (33-42)
+    // Eyebrows
     LeftEyebrowOuter = 70,
     LeftEyebrowInner = 107,
     LeftEyebrowTop = 65,
     RightEyebrowOuter = 300,
     RightEyebrowInner = 336,
     RightEyebrowTop = 293,
-    // Nose (43-54)
+    // Nose
     NoseTip = 1,
     NoseBottom = 2,
     NoseLeft = 49,
     NoseRight = 275,
-    // Mouth (55-68)
+    // Mouth
     MouthLeft = 61,
     MouthRight = 291,
     MouthTop = 13,
@@ -84,18 +81,18 @@ pub enum LandmarkType {
     UpperLipBottom = 15,
     LowerLipTop = 17,
     LowerLipBottom = 18,
-    // Iris/Pupil (69-76)
+    // Iris/Pupil (468-477)
     LeftPupil = 468,
-    RightPupil = 473,
     LeftIrisLeft = 469,
-    LeftIrisRight = 471,
-    RightIrisLeft = 474,
-    RightIrisRight = 476,
     LeftIrisTop = 470,
+    LeftIrisRight = 471,
     LeftIrisBottom = 472,
+    RightPupil = 473,
+    RightIrisLeft = 474,
     RightIrisTop = 475,
+    RightIrisRight = 476,
     RightIrisBottom = 477,
-    // Center
+    // Center of face
     Forehead = 10,
     Unknown,
 }
@@ -109,20 +106,9 @@ impl LandmarkType {
     /// From MediaPipe landmark index
     pub fn from_index(index: usize) -> Option<Self> {
         match index {
-            0 => Some(LandmarkType::NoseTip),
-            1 => Some(LandmarkType::NoseBottom),
+            1 => Some(LandmarkType::NoseTip),
             10 => Some(LandmarkType::Forehead),
-            12 => Some(LandmarkType::UpperLipTop),
-            13 => Some(LandmarkType::MouthTop),
-            14 => Some(LandmarkType::MouthBottom),
-            15 => Some(LandmarkType::UpperLipBottom),
-            17 => Some(LandmarkType::LowerLipTop),
-            18 => Some(LandmarkType::LowerLipBottom),
             33 => Some(LandmarkType::LeftEyeOuter),
-            61 => Some(LandmarkType::MouthLeft),
-            65 => Some(LandmarkType::LeftEyebrowTop),
-            70 => Some(LandmarkType::LeftEyebrowOuter),
-            107 => Some(LandmarkType::LeftEyebrowInner),
             133 => Some(LandmarkType::LeftEyeInner),
             145 => Some(LandmarkType::LeftEyeBottom),
             152 => Some(LandmarkType::Chin),
@@ -130,13 +116,8 @@ impl LandmarkType {
             234 => Some(LandmarkType::LeftJaw),
             263 => Some(LandmarkType::RightEyeInner),
             275 => Some(LandmarkType::NoseRight),
-            291 => Some(LandmarkType::MouthRight),
-            293 => Some(LandmarkType::RightEyebrowTop),
-            300 => Some(LandmarkType::RightEyebrowOuter),
-            336 => Some(LandmarkType::RightEyebrowInner),
             362 => Some(LandmarkType::RightEyeOuter),
             374 => Some(LandmarkType::RightEyeBottom),
-            386 => Some(LandmarkType::RightEyebrowTop),
             454 => Some(LandmarkType::RightJaw),
             468 => Some(LandmarkType::LeftPupil),
             469 => Some(LandmarkType::LeftIrisLeft),
@@ -214,9 +195,15 @@ impl FaceMeshResult {
     /// Calculate face yaw (left-right rotation)
     pub fn face_yaw(&self) -> f32 {
         // Use nose tip and eye centers to estimate yaw
-        let left_eye = self.get(LandmarkType::LeftEyeOuter)?;
-        let right_eye = self.get(LandmarkType::RightEyeOuter)?;
-        let nose = self.get(LandmarkType::NoseTip)?;
+        let Some(left_eye) = self.get(LandmarkType::LeftEyeOuter) else {
+            return 0.0;
+        };
+        let Some(right_eye) = self.get(LandmarkType::RightEyeOuter) else {
+            return 0.0;
+        };
+        let Some(nose) = self.get(LandmarkType::NoseTip) else {
+            return 0.0;
+        };
 
         // Horizontal distance between eyes
         let eye_dist = left_eye.distance(right_eye);
@@ -234,9 +221,15 @@ impl FaceMeshResult {
 
     /// Calculate face pitch (up-down rotation)
     pub fn face_pitch(&self) -> f32 {
-        let nose_tip = self.get(LandmarkType::NoseTip)?;
-        let nose_bottom = self.get(LandmarkType::NoseBottom)?;
-        let forehead = self.get(LandmarkType::Forehead)?;
+        let Some(nose_tip) = self.get(LandmarkType::NoseTip) else {
+            return 0.0;
+        };
+        let Some(nose_bottom) = self.get(LandmarkType::NoseBottom) else {
+            return 0.0;
+        };
+        let Some(forehead) = self.get(LandmarkType::Forehead) else {
+            return 0.0;
+        };
 
         // Vertical offset from expected position
         let expected_nose_y = (forehead.y + nose_bottom.y) / 2.0;
@@ -248,8 +241,12 @@ impl FaceMeshResult {
 
     /// Calculate face roll (tilt)
     pub fn face_roll(&self) -> f32 {
-        let left_eye = self.get(LandmarkType::LeftEyeOuter)?;
-        let right_eye = self.get(LandmarkType::RightEyeOuter)?;
+        let Some(left_eye) = self.get(LandmarkType::LeftEyeOuter) else {
+            return 0.0;
+        };
+        let Some(right_eye) = self.get(LandmarkType::RightEyeOuter) else {
+            return 0.0;
+        };
 
         // Angle between eyes
         let dy = right_eye.y - left_eye.y;
@@ -266,7 +263,7 @@ impl FaceMeshResult {
     /// Estimate interpupillary distance (IPD) in normalized coordinates
     pub fn ipd(&self) -> f32 {
         if let Some((left, right)) = self.eye_centers() {
-            left.distance(right)
+            left.distance(&right)
         } else {
             0.06 // Default average IPD
         }

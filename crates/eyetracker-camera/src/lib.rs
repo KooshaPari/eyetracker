@@ -7,6 +7,6 @@ mod camera;
 mod frame;
 mod processing;
 
-pub use camera::{Camera, CameraConfig, CameraError, CameraList};
+pub use camera::{Camera, CameraConfig, CameraError};
 pub use frame::{Frame, FrameFormat, FrameMetadata};
 pub use processing::{preprocess_frame, detect_eye_region, crop_eye_region};

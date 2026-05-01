@@ -1,8 +1,8 @@
 //! Image processing utilities for eye tracking
 //!
 //! Provides preprocessing functions optimized for eye detection.
+//! Works with raw pixel data for ONNX inference.
 
-use crate::{Frame, FrameFormat};
 use serde::{Deserialize, Serialize};
 
 /// Eye region detection result
@@ -108,24 +108,31 @@ impl PreprocessOptions {
     }
 }
 
-/// Preprocess a frame for eye tracking inference
-pub fn preprocess_frame(frame: &Frame, options: &PreprocessOptions) -> Vec<f32> {
-    // Start with grayscale if requested
-    let source = if options.to_grayscale || frame.format != FrameFormat::Grayscale8 {
-        frame.to_grayscale()
-    } else {
-        frame.clone()
-    };
-
-    let mut pixels: Vec<f32> = Vec::with_capacity(
-        (options.target_width * options.target_height) as usize,
-    );
-
-    // Resize and convert to normalized floats
-    let src_width = source.width;
-    let src_height = source.height;
+/// Preprocess raw pixel data for eye tracking inference
+pub fn preprocess_frame(pixels: &[u8], width: u32, height: u32, options: &PreprocessOptions) -> Vec<f32> {
+    let src_width = width;
+    let src_height = height;
     let dst_width = options.target_width;
     let dst_height = options.target_height;
+
+    let mut output: Vec<f32> = Vec::with_capacity(
+        (dst_width * dst_height) as usize * if options.to_grayscale { 1 } else { 3 },
+    );
+
+    // Convert to grayscale first if needed
+    let grayscale: Vec<u8> = if options.to_grayscale && pixels.len() as u32 == width * height * 3 {
+        rgb_to_grayscale(pixels, width, height)
+    } else if options.to_grayscale {
+        pixels.to_vec()
+    } else {
+        pixels.to_vec()
+    };
+
+    let src_data: &[u8] = if options.to_grayscale {
+        &grayscale
+    } else {
+        pixels
+    };
 
     for dst_y in 0..dst_height {
         for dst_x in 0..dst_width {
@@ -143,7 +150,7 @@ pub fn preprocess_frame(frame: &Frame, options: &PreprocessOptions) -> Vec<f32> 
 
             let get_pixel = |x: u32, y: u32| -> f32 {
                 let idx = (y * src_width + x) as usize;
-                source.data.get(idx).copied().unwrap_or(0) as f32
+                src_data.get(idx).copied().unwrap_or(0) as f32
             };
 
             // Bilinear interpolation
@@ -170,20 +177,43 @@ pub fn preprocess_frame(frame: &Frame, options: &PreprocessOptions) -> Vec<f32> 
                 adjusted
             };
 
-            pixels.push(normalized);
+            output.push(normalized);
         }
     }
 
     // Apply histogram equalization if requested
     if options.equalize_histogram {
-        equalize_histogram_inplace(&mut pixels);
+        equalize_histogram_inplace(&mut output);
     }
 
-    pixels
+    output
+}
+
+/// Convert RGB pixels to grayscale
+fn rgb_to_grayscale(pixels: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let mut grayscale = Vec::with_capacity((width * height) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let idx = ((y * width + x) * 3) as usize;
+            if idx + 2 < pixels.len() {
+                // ITU-R BT.601 conversion
+                let r = pixels[idx] as f32;
+                let g = pixels[idx + 1] as f32;
+                let b = pixels[idx + 2] as f32;
+                let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                grayscale.push(gray as u8);
+            }
+        }
+    }
+    grayscale
 }
 
 /// Equalize histogram in-place (CLAHE-lite)
 fn equalize_histogram_inplace(pixels: &mut [f32]) {
+    if pixels.is_empty() {
+        return;
+    }
+
     // Build histogram
     let mut hist = [0u32; 256];
     for &p in pixels.iter() {
@@ -213,13 +243,13 @@ fn equalize_histogram_inplace(pixels: &mut [f32]) {
 
 /// Simple face/eye region detection heuristic
 /// Note: For production, use ML-based detection (MediaPipe, etc.)
-pub fn detect_eye_region(frame: &Frame) -> Option<EyeRegion> {
-    // Simplified heuristic detection based on brightness patterns
-    // This is a fallback - proper detection requires ML model
-
-    let gray = frame.to_grayscale();
-    let width = gray.width;
-    let height = gray.height;
+pub fn detect_eye_region(pixels: &[u8], width: u32, height: u32) -> Option<EyeRegion> {
+    // Convert to grayscale if RGB
+    let gray = if pixels.len() as u32 == width * height * 3 {
+        rgb_to_grayscale(pixels, width, height)
+    } else {
+        pixels.to_vec()
+    };
 
     // Assume face is in center-upper portion of frame
     let face_x = width / 4;
@@ -230,21 +260,21 @@ pub fn detect_eye_region(frame: &Frame) -> Option<EyeRegion> {
     // Within face region, look for eye-like bright spots
     let mut best_x = face_x + face_w / 4;
     let mut best_y = face_y + face_h / 4;
-    let mut best_score = 0.0;
+    let mut best_score = 0.0f32;
 
     // Scan for bright regions (eyes reflect IR in many setups)
     let step = 10;
-    for y in (face_y..(face_y + face_h - 50)).step_by(step as usize) {
-        for x in (face_x..(face_x + face_w - 50)).step_by(step as usize) {
-            let mut sum = 0.0;
-            let mut count = 0;
+    for y in (face_y..(face_y + face_h.saturating_sub(50))).step_by(step as usize) {
+        for x in (face_x..(face_x + face_w.saturating_sub(50))).step_by(step as usize) {
+            let mut sum = 0.0f32;
+            let mut count = 0u32;
 
             for dy in 0..30 {
                 for dx in 0..30 {
                     if (y + dy) < height && (x + dx) < width {
                         let idx = ((y + dy) * width + (x + dx)) as usize;
-                        if idx < gray.data.len() {
-                            sum += gray.data[idx] as f32;
+                        if idx < gray.len() {
+                            sum += gray[idx] as f32;
                             count += 1;
                         }
                     }
@@ -291,15 +321,17 @@ pub fn detect_eye_region(frame: &Frame) -> Option<EyeRegion> {
     }
 }
 
-/// Crop a frame to a specific region
-pub fn crop_eye_region(frame: &Frame, region: &EyeRegion) -> Frame {
-    let x = region.x.min(frame.width - 1);
-    let y = region.y.min(frame.height - 1);
-    let w = region.width.min(frame.width - x);
-    let h = region.height.min(frame.height - y);
+/// Crop a region from raw pixel data
+pub fn crop_region(pixels: &[u8], width: u32, height: u32, region: &EyeRegion) -> Vec<u8> {
+    let x = region.x.min(width.saturating_sub(1));
+    let y = region.y.min(height.saturating_sub(1));
+    let w = region.width.min(width.saturating_sub(x));
+    let h = region.height.min(height.saturating_sub(y));
 
-    let bpp = frame.format.bytes_per_pixel();
-    let src_stride = frame.width as usize * bpp;
+    let is_rgb = pixels.len() as u32 == width * height * 3;
+    let bpp = if is_rgb { 3 } else { 1 };
+
+    let src_stride = width as usize * bpp;
     let dst_stride = w as usize * bpp;
 
     let mut data = vec![0u8; (w * h) as usize * bpp];
@@ -310,24 +342,18 @@ pub fn crop_eye_region(frame: &Frame, region: &EyeRegion) -> Frame {
         let src_start = src_row + x as usize * bpp;
         let src_end = src_start + dst_stride;
 
-        if src_end <= frame.data.len() {
+        if src_end <= pixels.len() {
             data[dst_row..dst_row + dst_stride]
-                .copy_from_slice(&frame.data[src_start..src_end]);
+                .copy_from_slice(&pixels[src_start..src_end]);
         }
     }
 
-    Frame {
-        data,
-        width: w,
-        height: h,
-        format: frame.format,
-        metadata: frame.metadata.clone(),
-    }
+    data
 }
 
 /// Extract eye landmarks (simplified)
 /// Returns normalized (0-1) coordinates
-pub fn extract_eye_landmarks(frame: &Frame, eye_region: &EyeRegion) -> Vec<(f32, f32)> {
+pub fn extract_eye_landmarks(width: u32, height: u32, eye_region: &EyeRegion) -> Vec<(f32, f32)> {
     let mut landmarks = Vec::with_capacity(6);
 
     // Simplified: estimate landmarks based on region
@@ -337,31 +363,31 @@ pub fn extract_eye_landmarks(frame: &Frame, eye_region: &EyeRegion) -> Vec<(f32,
 
     // Inner corner
     landmarks.push((
-        (eye_region.x as f32 + w * 0.2) / frame.width as f32,
-        (cy as f32) / frame.height as f32,
+        (eye_region.x as f32 + w * 0.2) / width as f32,
+        cy as f32 / height as f32,
     ));
 
     // Outer corner
     landmarks.push((
-        (eye_region.x as f32 + w * 0.8) / frame.width as f32,
-        (cy as f32) / frame.height as f32,
+        (eye_region.x as f32 + w * 0.8) / width as f32,
+        cy as f32 / height as f32,
     ));
 
     // Center (pupil estimate)
-    landmarks.push((cx as f32 / frame.width as f32, cy as f32 / frame.height as f32));
+    landmarks.push((cx as f32 / width as f32, cy as f32 / height as f32));
 
     // Upper lid points
     landmarks.push((
-        (cx as f32 - w * 0.15) / frame.width as f32,
-        (eye_region.y as f32 + h * 0.2) / frame.height as f32,
+        (cx as f32 - w * 0.15) / width as f32,
+        (eye_region.y as f32 + h * 0.2) / height as f32,
     ));
     landmarks.push((
-        cx as f32 / frame.width as f32,
-        (eye_region.y as f32 + h * 0.1) / frame.height as f32,
+        cx as f32 / width as f32,
+        (eye_region.y as f32 + h * 0.1) / height as f32,
     ));
     landmarks.push((
-        (cx as f32 + w * 0.15) / frame.width as f32,
-        (eye_region.y as f32 + h * 0.2) / frame.height as f32,
+        (cx as f32 + w * 0.15) / width as f32,
+        (eye_region.y as f32 + h * 0.2) / height as f32,
     ));
 
     landmarks
@@ -396,8 +422,7 @@ mod tests {
 
     #[test]
     fn test_crop_region() {
-        let frame = Frame::new(vec![0u8; 640 * 480 * 3], 640, 480, FrameFormat::Rgb8);
-
+        let pixels = vec![0u8; 640 * 480 * 3];
         let region = EyeRegion {
             x: 100,
             y: 50,
@@ -407,15 +432,12 @@ mod tests {
             is_left: true,
         };
 
-        let cropped = crop_eye_region(&frame, &region);
-        assert_eq!(cropped.width, 80);
-        assert_eq!(cropped.height, 40);
+        let cropped = crop_region(&pixels, 640, 480, &region);
+        assert_eq!(cropped.len(), 80 * 40 * 3);
     }
 
     #[test]
     fn test_landmark_extraction() {
-        let frame = Frame::new(vec![0u8; 640 * 480], 640, 480, FrameFormat::Grayscale8);
-
         let region = EyeRegion {
             x: 200,
             y: 100,
@@ -425,7 +447,7 @@ mod tests {
             is_left: true,
         };
 
-        let landmarks = extract_eye_landmarks(&frame, &region);
+        let landmarks = extract_eye_landmarks(640, 480, &region);
         assert_eq!(landmarks.len(), 6);
 
         // All landmarks should be normalized
