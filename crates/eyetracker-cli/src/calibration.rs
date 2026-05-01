@@ -1,14 +1,33 @@
 //! Calibration module
 //!
 //! Handles 9-point calibration and accuracy validation.
+use std::io;
+use std::io::Write;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use crossterm::{
+    event::{self, DisableBracketedPaste, DisableFocusChange, EnableBracketedPaste, EnableFocusChange, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
+    text::{Line, Text},
+    widgets::{Block, Borders, Paragraph},
+    Frame, Terminal,
+};
+use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
+
 use eyetracker_camera::{Camera, CameraConfig};
-use eyetracker_core::{Calibrator, CalibrationState, GazeEstimator};
+use eyetracker_core::calibration::{Calibrator, CalibrationState};
+use eyetracker_inference::{
+    pipeline::InferencePipeline,
+    processing::{preprocess_frame, PreprocessOptions},
+};
+use std::sync::{Arc, Mutex};
 use eyetracker_domain::Point;
 use eyetracker_inference::{
     preprocess_frame, GazeEstimationResult, InferencePipeline, PreprocessOptions,
@@ -78,7 +97,7 @@ pub fn run_calibration(
 
     // Save calibration if requested
     if let Some(path) = save_path {
-        if let Ok(ref cal) = result {
+        if let Ok(cal) = &result {
             save_calibration(cal, &path)?;
         }
     }
@@ -127,7 +146,7 @@ fn run_calibration_ui<B: ratatui::backend::Backend>(
         };
 
         // Process frame
-        let pixels = preprocess_frame(&frame, &PreprocessOptions::default());
+        let pixels = preprocess_frame(&frame.data, frame.width, frame.height, &PreprocessOptions::default());
         let result = pipeline.process_frame(&pixels, frame.width, frame.height);
 
         // Get gaze position
@@ -277,14 +296,14 @@ fn draw_calibration_ui<B: ratatui::backend::Backend>(
 
     // Instructions
     let instructions = Paragraph::new(vec![
-        Text::raw("Progress: "),
-        Text::styled(
+        Line::raw("Progress: "),
+        Line::styled(
             format!("{}/{} points", current_index.min(points.len()), points.len()),
             Style::new().green(),
         ),
-        Text::raw(" | "),
-        Text::raw("Gaze: "),
-        Text::styled(
+        Line::raw(" | "),
+        Line::raw("Gaze: "),
+        Line::styled(
             format!("({:.2}, {:.2})", gaze_pos.0, gaze_pos.1),
             Style::new().cyan(),
         ),

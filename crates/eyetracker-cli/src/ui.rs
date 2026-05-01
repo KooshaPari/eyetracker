@@ -8,8 +8,8 @@ use ratatui::{
 };
 
 /// Create a styled text widget
-pub fn styled_text(text: &str, color: Color) -> ratatui::widgets::Paragraph<'static> {
-    ratatui::widgets::Paragraph::new(text)
+pub fn styled_text(text: &str, color: Color) -> ratatui::widgets::Paragraph {
+    ratatui::widgets::Paragraph::new(text.to_string())
         .style(Style::new().fg(color))
         .alignment(ratatui::layout::Alignment::Center)
 }

@@ -19,4 +19,4 @@ pub use face_mesh::{FaceMesh, FaceMeshResult, Landmark, LandmarkType, FaceBox};
 pub use gaze_estimator::{GazeEstimation, GazeEstimationResult, GazeDirection, ScreenCalibration};
 pub use model::{ModelConfig, ModelLoader, ModelType, InferenceProvider};
 pub use pipeline::{InferencePipeline, PipelineConfig};
-pub use processing::{preprocess_frame, PreprocessOptions, detect_eye_region, crop_eye_region};
+pub use processing::{crop_region, detect_eye_region, preprocess_frame, PreprocessOptions};

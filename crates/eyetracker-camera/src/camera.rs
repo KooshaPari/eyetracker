@@ -1,14 +1,15 @@
 //! Camera capture module
 //!
-//! Handles webcam enumeration, initialization, and frame streaming.
+//! Handles webcam enumeration, initialization, and frame streaming
+//! using cross-platform video capture via ccap-rs.
 
+use crate::Frame;
 use anyhow::{anyhow, Result};
-use nokhwa::prelude::*;
-use nokhwa::utils::*;
+use ccap::{PixelFormat, Provider};
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use thiserror::Error;
-use tokio::sync::mpsc;
 
 /// Camera errors
 #[derive(Error, Debug)]
@@ -40,8 +41,6 @@ pub struct CameraConfig {
     pub height: u32,
     /// Camera index (if using index-based selection)
     pub camera_index: Option<usize>,
-    /// Camera ID (if using ID-based selection)
-    pub camera_id: Option<String>,
     /// Request low-light mode if available
     pub low_light_mode: bool,
 }
@@ -53,7 +52,6 @@ impl Default for CameraConfig {
             width: 640,
             height: 480,
             camera_index: None,
-            camera_id: None,
             low_light_mode: false,
         }
     }
@@ -108,13 +106,12 @@ impl CameraConfig {
 pub struct CameraInfo {
     pub index: usize,
     pub name: String,
-    pub id: String,
-    pub supported_formats: Vec<Resolution>,
+    pub supported_formats: Vec<String>,
 }
 
 impl std::fmt::Display for CameraInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {} ({})", self.index, self.name, self.id)
+        write!(f, "[{}] {}", self.index, self.name)
     }
 }
 
@@ -122,24 +119,23 @@ impl std::fmt::Display for CameraInfo {
 pub fn list_cameras() -> Result<Vec<CameraInfo>> {
     let mut cameras = Vec::new();
 
-    // Query cameras
-    match nokhwa::utils::Camera::camera_list() {
-        Ok(list) => {
-            for (index, cam_spec) in list.enumerate() {
-                cameras.push(CameraInfo {
-                    index,
-                    name: cam_spec.human_name().to_string(),
-                    id: cam_spec.id().to_string(),
-                    supported_formats: cam_spec
-                        .supported_resolution()
-                        .iter()
-                        .map(|r| Resolution(r.0, r.1))
-                        .collect(),
-                });
+    // Query available devices by trying indices
+    for index in 0..10 {
+        match Provider::with_device(index) {
+            Ok(provider) => {
+                if let Ok(info) = provider.device_info() {
+                    cameras.push(CameraInfo {
+                        index: index as usize,
+                        name: info.name,
+                        supported_formats: info
+                            .supported_pixel_formats
+                            .iter()
+                            .map(|f| f.as_str().to_string())
+                            .collect(),
+                    });
+                }
             }
-        }
-        Err(e) => {
-            tracing::warn!("Failed to query cameras: {}", e);
+            Err(_) => continue,
         }
     }
 
@@ -148,7 +144,7 @@ pub fn list_cameras() -> Result<Vec<CameraInfo>> {
 
 /// Camera capture handle
 pub struct Camera {
-    inner: Option<nokhwa::Camera>,
+    provider: Arc<Mutex<Provider>>,
     config: CameraConfig,
     running: bool,
     frame_count: u64,
@@ -160,25 +156,34 @@ impl Camera {
     pub fn new(config: CameraConfig) -> Result<Self> {
         let camera_index = config.camera_index.unwrap_or(0);
 
-        let frame_spec = FrameSpec::from_res_and_fps(
-            Resolution(config.width, config.height),
-            FrameRate::from_fps(config.target_fps as u16),
-        );
+        let mut provider = Provider::with_device(camera_index as i32)
+            .map_err(|e| anyhow!("Failed to open camera: {}", e))?;
 
-        let camera = nokhwa::Camera::new(
-            CameraIndex::Index(camera_index as u32),
-            Some(frame_spec),
-        )
-        .map_err(|e| anyhow!("Failed to open camera: {}", e))?;
+        // Set resolution
+        provider
+            .set_resolution(config.width, config.height)
+            .map_err(|e| anyhow!("Failed to set resolution: {}", e))?;
+
+        // Set frame rate
+        provider
+            .set_frame_rate(config.target_fps as f64)
+            .map_err(|e| anyhow!("Failed to set frame rate: {}", e))?;
+
+        // Set pixel format to RGB
+        provider
+            .set_pixel_format(PixelFormat::Rgb24)
+            .map_err(|e| anyhow!("Failed to set pixel format: {}", e))?;
 
         tracing::info!(
-            "Camera opened at index {} with resolution {:?}",
+            "Camera opened at index {} with resolution {}x{} @ {}fps",
             camera_index,
-            frame_spec
+            config.width,
+            config.height,
+            config.target_fps
         );
 
         Ok(Self {
-            inner: Some(camera),
+            provider: Arc::new(Mutex::new(provider)),
             config,
             running: false,
             frame_count: 0,
@@ -197,9 +202,11 @@ impl Camera {
             return Ok(());
         }
 
-        if let Some(ref mut cam) = self.inner {
-            cam.open_stream()
-                .map_err(|e| anyhow!("Failed to start stream: {}", e))?;
+        {
+            let mut provider = self.provider.lock().unwrap();
+            provider
+                .start()
+                .map_err(|e| anyhow!("Failed to start camera: {}", e))?;
         }
 
         self.running = true;
@@ -216,9 +223,11 @@ impl Camera {
             return Ok(());
         }
 
-        if let Some(ref mut cam) = self.inner {
-            cam.stop_stream()
-                .map_err(|e| anyhow!("Failed to stop stream: {}", e))?;
+        {
+            let mut provider = self.provider.lock().unwrap();
+            provider
+                .stop()
+                .map_err(|e| anyhow!("Failed to stop camera: {}", e))?;
         }
 
         self.running = false;
@@ -232,19 +241,28 @@ impl Camera {
             return Err(CameraError::NotRunning.into());
         }
 
-        let camera = self.inner.as_mut().ok_or_else(|| CameraError::NotRunning)?;
+        let frame = {
+            let mut provider = self.provider.lock().unwrap();
+            provider
+                .grab_frame(1000)
+                .map_err(|e| anyhow!("Failed to capture frame: {}", e))?
+        };
 
-        let frame = camera
-            .frame()
-            .map_err(|e| anyhow!("Failed to capture frame: {}", e))?;
+        let frame = match frame {
+            Some(f) => f,
+            None => return Err(CameraError::CaptureFailed("No frame available".into()).into()),
+        };
 
         self.frame_count += 1;
 
-        let width = self.config.width;
-        let height = self.config.height;
+        let width = frame.width();
+        let height = frame.height();
 
-        // Convert buffer to raw bytes - use bytes() method
-        let data = frame.bytes().to_vec();
+        // Get frame data
+        let data = frame
+            .data()
+            .map_err(|e| anyhow!("Failed to get frame data: {}", e))?
+            .to_vec();
 
         let metadata = crate::FrameMetadata {
             timestamp: std::time::SystemTime::now(),
@@ -269,61 +287,7 @@ impl Camera {
             return Err(CameraError::NotRunning.into());
         }
 
-        tokio::time::timeout(timeout, async {
-            self.capture_frame()
-        }).await?
-    }
-
-    /// Get a channel for frame streaming
-    pub fn frame_channel(&mut self, buffer_size: usize) -> Result<mpsc::Receiver<Frame>> {
-        let (tx, rx) = mpsc::channel(buffer_size);
-        self.start()?;
-
-        let width = self.config.width;
-        let height = self.config.height;
-
-        tokio::spawn(async move {
-            let camera = nokhwa::Camera::new(
-                CameraIndex::Index(0),
-                Some(FrameSpec::from_res_and_fps(
-                    Resolution(width, height),
-                    FrameRate::from_fps(60),
-                )),
-            );
-
-            if let Ok(mut cam) = camera {
-                let _ = cam.open_stream();
-                loop {
-                    match cam.frame() {
-                        Ok(frame) => {
-                            let frame_data = frame.bytes().to_vec();
-                            let frame = Frame {
-                                data: frame_data,
-                                width,
-                                height,
-                                format: crate::FrameFormat::Rgb8,
-                                metadata: crate::FrameMetadata {
-                                    timestamp: std::time::SystemTime::now(),
-                                    frame_number: 0,
-                                    fps: 0.0,
-                                    width,
-                                    height,
-                                },
-                            };
-
-                            if tx.send(frame).await.is_err() {
-                                break;
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!("Frame capture error: {}", e);
-                        }
-                    }
-                }
-            }
-        });
-
-        Ok(rx)
+        tokio::time::timeout(timeout, async { self.capture_frame() }).await?
     }
 
     fn calculate_fps(&self) -> f64 {
@@ -349,14 +313,6 @@ impl Camera {
     /// Get total frames captured
     pub fn frame_count(&self) -> u64 {
         self.frame_count
-    }
-
-    /// Get human-readable camera name
-    pub fn name(&self) -> String {
-        self.inner
-            .as_ref()
-            .map(|c| c.human_name())
-            .unwrap_or_else(|| "Unknown".to_string())
     }
 }
 

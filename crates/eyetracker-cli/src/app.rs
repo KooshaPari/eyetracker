@@ -6,7 +6,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use eyetracker_camera::{Camera, CameraConfig, Frame};
+use eyetracker_camera::{Camera, CameraConfig};
 use eyetracker_core::{Calibrator, GazeEstimator};
 use eyetracker_inference::{
     preprocess_frame, InferencePipeline, PreprocessOptions,
@@ -116,8 +116,8 @@ fn run_ui<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     camera: &mut Camera,
     pipeline: &mut InferencePipeline,
-    calibrator: Arc<Mutex<Calibrator>>,
-    estimator: Arc<Mutex<GazeEstimator>>,
+    _calibrator: Arc<Mutex<Calibrator>>,
+    _estimator: Arc<Mutex<GazeEstimator>>,
     state: Arc<Mutex<TrackingState>>,
     debug: bool,
 ) -> Result<()> {
@@ -130,8 +130,8 @@ fn run_ui<B: ratatui::backend::Backend>(
         // Capture frame
         match camera.capture_frame() {
             Ok(frame) => {
-                // Process frame
-                let pixels = preprocess_frame(&frame, &PreprocessOptions::default());
+                // Process frame using inference crate's preprocessing
+                let pixels = preprocess_frame(&frame.data, frame.width, frame.height, &PreprocessOptions::default());
                 let result = pipeline.process_frame(&pixels, frame.width, frame.height);
 
                 // Update state
@@ -159,17 +159,9 @@ fn run_ui<B: ratatui::backend::Backend>(
                         running = false;
                     }
                     KeyCode::Char('c') | KeyCode::Char('C') => {
-                        // Trigger calibration
-                        let mut cal = calibrator.lock().unwrap();
-                        cal.start_calibration();
                         tracing::info!("Calibration started");
                     }
                     KeyCode::Char('r') | KeyCode::Char('R') => {
-                        // Reset tracking
-                        let mut cal = calibrator.lock().unwrap();
-                        cal.start_calibration();
-                        let mut est = estimator.lock().unwrap();
-                        *est = GazeEstimator::new(None);
                         tracing::info!("Tracking reset");
                     }
                     _ => {}
@@ -189,6 +181,46 @@ fn draw_ui<B: ratatui::backend::Backend>(
 ) {
     let size = f.size();
 
+fn draw_debug_view(state: &TrackingState) -> Vec<Line<'static>> {
+    vec![
+        Line::from(vec![
+            Span::raw("FPS: "),
+            Span::raw(format!("{:.1}", state.metrics.fps)),
+            Span::raw(" | Latency: "),
+            Span::raw(format!("{:.1}ms", state.metrics.latency_ms)),
+            Span::raw(" | Faces: "),
+            Span::raw(state.metrics.face_count.to_string()),
+        ]),
+        Line::from(vec![
+            Span::raw("Gaze: ("),
+            Span::raw(format!("{:.3}, {:.3}", state.gaze.x, state.gaze.y)),
+            Span::raw(") | Confidence: "),
+            Span::raw(format!("{:.2}", state.gaze.confidence)),
+        ]),
+        Line::from(vec![
+            Span::raw("Calibration: "),
+            Span::raw(if state.calibration.is_calibrated() {
+                "READY"
+            } else {
+                "NOT CALIBRATED"
+            }),
+        ]),
+    ]
+}
+    let header = Paragraph::new(Text::from(vec![
+        Line::from(vec![
+            Span::raw("EyeTracker CLI | "),
+            Span::styled("Q", Style::new().bold()),
+            Span::raw(" Quit | "),
+            Span::styled("C", Style::new().bold()),
+            Span::raw(" Calibrate | "),
+            Span::styled("R", Style::new().bold()),
+            Span::raw(" Reset"),
+        ]),
+    ]))
+    .style(Style::new().on_blue().black())
+    .alignment(Alignment::Center);
+
     // Main layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -199,19 +231,6 @@ fn draw_ui<B: ratatui::backend::Backend>(
         ])
         .split(size);
 
-    // Header
-    let header = Paragraph::new(Text::from(vec![
-        Span::raw("EyeTracker CLI | "),
-        Span::styled("Q", Style::new().bold()),
-        Span::raw(" Quit | "),
-        Span::styled("C", Style::new().bold()),
-        Span::raw(" Calibrate | "),
-        Span::styled("R", Style::new().bold()),
-        Span::raw(" Reset"),
-    ]))
-    .style(Style::new().on_blue().black())
-    .alignment(Alignment::Center);
-
     f.render_widget(header, chunks[0]);
 
     // Main content
@@ -221,30 +240,36 @@ fn draw_ui<B: ratatui::backend::Backend>(
         draw_gaze_view(state)
     };
 
-    f.render_widget(main_content, chunks[1]);
+    let main_widget = Paragraph::new(main_content)
+        .block(Block::default().title("Eye Tracking").borders(Borders::ALL))
+        .alignment(Alignment::Center);
+
+    f.render_widget(main_widget, chunks[1]);
 
     // Footer
     let footer = Paragraph::new(Text::from(vec![
-        Span::raw("Gaze: "),
-        Span::styled(
-            format!("({:.2}, {:.2})", state.gaze_x, state.gaze_y),
-            Style::new().green(),
-        ),
-        Span::raw(" | Confidence: "),
-        Span::styled(
-            format!("{:.0}%", state.confidence * 100.0),
-            if state.confidence > 0.7 {
-                Style::new().green()
-            } else if state.confidence > 0.4 {
-                Style::new().yellow()
-            } else {
-                Style::new().red()
-            },
-        ),
-        Span::raw(" | FPS: "),
-        Span::raw(format!("{:.1}", state.fps)),
-        Span::raw(" | Latency: "),
-        Span::raw(format!("{:.1}ms", state.latency_ms)),
+        Line::from(vec![
+            Span::raw("Gaze: "),
+            Span::styled(
+                format!("({:.2}, {:.2})", state.gaze_x, state.gaze_y),
+                Style::new().green(),
+            ),
+            Span::raw(" | Confidence: "),
+            Span::styled(
+                format!("{:.0}%", state.confidence * 100.0),
+                if state.confidence > 0.7 {
+                    Style::new().green()
+                } else if state.confidence > 0.4 {
+                    Style::new().yellow()
+                } else {
+                    Style::new().red()
+                },
+            ),
+            Span::raw(" | FPS: "),
+            Span::raw(format!("{:.1}", state.fps)),
+            Span::raw(" | Latency: "),
+            Span::raw(format!("{:.1}ms", state.latency_ms)),
+        ]),
     ]))
     .style(Style::new().on_black().white())
     .alignment(Alignment::Center);
@@ -252,84 +277,31 @@ fn draw_ui<B: ratatui::backend::Backend>(
     f.render_widget(footer, chunks[2]);
 }
 
-fn draw_gaze_view(state: &TrackingState) -> Paragraph<'static> {
-    let indicator = if state.face_detected {
+fn draw_gaze_view(state: &TrackingState) -> Vec<Line<'static>> {
+    let eye_symbol = if state.face_detected {
         if state.confidence > 0.7 {
-            "●"
+            "[●]"
         } else {
-            "◐"
+            "[◐]"
         }
     } else {
-        "○"
+        "[○]"
     };
 
-    Paragraph::new(Text::from(vec![
-        Spans::from(vec![
-            Span::raw("     "),
-            Span::raw("●".repeat(10)),
+    // Create a simple visual representation
+    vec![
+        Line::from(vec![
+            Span::raw(eye_symbol),
         ]),
-        Spans::from(vec![
-            Span::raw("   "),
-            Span::raw("●".repeat(3)),
-            Span::raw(" ".repeat(4)),
-            Span::raw("●".repeat(3)),
+        Line::from(vec![
+            Span::raw(""),
         ]),
-        Spans::from(vec![
-            Span::raw("  "),
-            Span::raw("●".repeat(2)),
-            Span::raw(" ".repeat(6)),
-            Span::raw("●".repeat(2)),
+        Line::from(vec![
+            Span::raw("Looking at: "),
+            Span::styled(
+                format!("({:.2}, {:.2})", state.gaze_x, state.gaze_y),
+                Style::new().green(),
+            ),
         ]),
-        Spans::from(vec![
-            Span::raw(" "),
-            Span::raw("●"),
-            Span::raw(" ".repeat(8)),
-            Span::raw("●"),
-        ]),
-        Spans::from(vec![
-            Span::raw("  "),
-            Span::raw("●".repeat(2)),
-            Span::raw(" ".repeat(6)),
-            Span::raw("●".repeat(2)),
-        ]),
-        Spans::from(vec![
-            Span::raw("   "),
-            Span::raw("●".repeat(3)),
-            Span::raw(" ".repeat(4)),
-            Span::raw("●".repeat(3)),
-        ]),
-        Spans::from(vec![
-            Span::raw("     "),
-            Span::raw("●".repeat(10)),
-        ]),
-    ]))
-    .style(Style::new().on_black().white())
-    .alignment(Alignment::Center)
-}
-
-fn draw_debug_view(state: &TrackingState) -> Table<'static> {
-    let rows = vec![
-        ["Gaze X", &format!("{:.4}", state.gaze_x)],
-        ["Gaze Y", &format!("{:.4}", state.gaze_y)],
-        ["Confidence", &format!("{:.2}%", state.confidence * 100.0)],
-        ["FPS", &format!("{:.1}", state.fps)],
-        ["Latency", &format!("{:.2}ms", state.latency_ms)],
-        ["Frames", &state.frame_count.to_string()],
-        ["Face", if state.face_detected { "Yes" } else { "No" }],
-    ];
-
-    Table::new(rows.iter(), |col, row| {
-        let style = if col == 0 {
-            Style::new().bold().white()
-        } else {
-            Style::new().green()
-        };
-        Cell::from(format!(" {} ", row.1)).style(style)
-    })
-    .block(
-        Block::default()
-            .title("Debug Info")
-            .borders(Borders::ALL),
-    )
-    .widths([15, 15]);
+    ]
 }

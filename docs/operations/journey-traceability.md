@@ -1,6 +1,6 @@
 # Journey Traceability
 
-**Repo:** eyetracker  
+**Repo:** eyetracker: eye-tracking library
 **Standard:** [phenotype-infra journey-traceability standard](https://github.com/kooshapari/phenotype-infra/blob/main/docs/governance/journey-traceability-standard.md)  
 **Schema:** [phenotype-journeys Manifest schema](https://github.com/kooshapari/phenotype-journeys/blob/main/schema/manifest.schema.json)
 
@@ -8,12 +8,12 @@
 
 - Primary library API usage patterns
 - Configuration and initialization
-- Core functionality demonstration
+- Metric/event emission and collection
 - Error handling patterns
 
 ## Keyframe capture schedule
 
-Keyframes: initialization, core operations, output, error states.
+Keyframes should be captured for: initialization, metric emission, collection endpoints, error states.
 
 ## Icon set
 

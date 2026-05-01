@@ -16,7 +16,7 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.40", features = ["full"] }
 
 # Camera capture
-nokhwa = { version = "0.10", features = ["input-native", "input-v4l", "input-avfoundation", "input-msmf"] }
+ccap-rs = "1.6"
 
 # Image processing
 image = "0.25"

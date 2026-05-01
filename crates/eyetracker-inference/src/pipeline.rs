@@ -340,4 +340,4 @@ mod tests {
 }
 
 // Re-export processing for convenience
-pub use crate::processing::{preprocess_frame, PreprocessOptions};
+pub use crate::processing::preprocess_frame;
