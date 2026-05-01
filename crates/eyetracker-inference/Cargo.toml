@@ -1,0 +1,26 @@
+[package]
+name = "eyetracker-inference"
+version = "0.1.0"
+edition = "2024"
+description = "ML inference for eye tracking"
+license = "MIT"
+authors = ["Phenotype"]
+
+[dependencies]
+# Workspace dependencies
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+# Image processing
+image = { workspace = true }
+
+# Math
+ndarray = "0.16"
+
+# Error handling
+anyhow = { workspace = true }
+
+[dev-dependencies]
+criterion = "0.5"
