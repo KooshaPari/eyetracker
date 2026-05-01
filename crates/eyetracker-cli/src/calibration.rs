@@ -4,25 +4,24 @@
 use std::io;
 use std::io::Write;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crossterm::{
-    event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    style::Style,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
     text::{Line, Text},
-    widgets::{Block, Borders, Paragraph},
+    widgets::Paragraph,
     Frame, Terminal,
 };
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
 
 use eyetracker_camera::{Camera, CameraConfig};
-use eyetracker_core::{Calibrator, CalibrationState};
+use eyetracker_core::{Calibrator, CalibrationState, GazeEstimator};
 use eyetracker_inference::{
     preprocess_frame, InferencePipeline, PreprocessOptions,
 };
@@ -72,7 +71,7 @@ pub fn run_calibration(
     camera_index: usize,
     num_points: u32,
     save_path: Option<std::path::PathBuf>,
-) -> Result<()> {
+) -> Result<Calibrator> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -226,8 +225,8 @@ fn run_calibration_ui<B: ratatui::backend::Backend>(
     Ok(cal)
 }
 
-fn draw_calibration_ui<B: ratatui::backend::Backend>(
-    f: &mut ratatui::Frame<B>,
+fn draw_calibration_ui(
+    f: &mut ratatui::Frame,
     points: &[CalibrationPoint],
     current_index: usize,
     gaze_pos: (f32, f32),
@@ -245,7 +244,7 @@ fn draw_calibration_ui<B: ratatui::backend::Backend>(
 
     // Header
     let header = Paragraph::new("Calibration - Look at each point")
-        .style(Style::new().on_blue().white())
+        .style(Style::new().bg(Color::Blue).fg(Color::White))
         .alignment(Alignment::Center);
     f.render_widget(header, chunks[0]);
 
@@ -270,11 +269,11 @@ fn draw_calibration_ui<B: ratatui::backend::Backend>(
         };
 
         let style = if i == current_index {
-            Style::new().red().bold()
+            Style::new().fg(Color::Red).add_modifier(Modifier::BOLD)
         } else if point.completed {
-            Style::new().green()
+            Style::new().fg(Color::Green)
         } else {
-            Style::new().white()
+            Style::new().fg(Color::White)
         };
 
         let paragraph = Paragraph::new(symbol)
@@ -290,16 +289,16 @@ fn draw_calibration_ui<B: ratatui::backend::Backend>(
         Line::raw("Progress: "),
         Line::styled(
             format!("{}/{} points", current_index.min(points.len()), points.len()),
-            Style::new().green(),
+            Style::new().fg(Color::Green),
         ),
         Line::raw(" | "),
         Line::raw("Gaze: "),
         Line::styled(
             format!("({:.2}, {:.2})", gaze_pos.0, gaze_pos.1),
-            Style::new().cyan(),
+            Style::new().fg(Color::Cyan),
         ),
     ])
-    .style(Style::new().on_black().white())
+    .style(Style::new().bg(Color::Black).fg(Color::White))
     .alignment(Alignment::Center);
 
     f.render_widget(instructions, chunks[2]);
