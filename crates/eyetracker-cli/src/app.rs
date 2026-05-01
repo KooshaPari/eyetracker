@@ -9,9 +9,16 @@ use crossterm::{
 use eyetracker_camera::{Camera, CameraConfig};
 use eyetracker_core::{Calibrator, GazeEstimator};
 use eyetracker_inference::{
-    preprocess_frame, InferencePipeline, PreprocessOptions,
+    preprocess_frame, InferencePipeline, InferenceResult, PreprocessOptions,
 };
-use ratatui::{backend::CrosstermBackend, layout::*, style::*, text::*, widgets::*, Terminal};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout, Alignment},
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Paragraph},
+    Terminal,
+};
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -174,51 +181,25 @@ fn run_ui<B: ratatui::backend::Backend>(
     Ok(())
 }
 
-fn draw_ui<B: ratatui::backend::Backend>(
-    f: &mut ratatui::Frame<B>,
+fn draw_ui(
+    f: &mut ratatui::Frame,
     state: &TrackingState,
     debug: bool,
 ) {
     let size = f.size();
 
-fn draw_debug_view(state: &TrackingState) -> Vec<Line<'static>> {
-    vec![
-        Line::from(vec![
-            Span::raw("FPS: "),
-            Span::raw(format!("{:.1}", state.metrics.fps)),
-            Span::raw(" | Latency: "),
-            Span::raw(format!("{:.1}ms", state.metrics.latency_ms)),
-            Span::raw(" | Faces: "),
-            Span::raw(state.metrics.face_count.to_string()),
-        ]),
-        Line::from(vec![
-            Span::raw("Gaze: ("),
-            Span::raw(format!("{:.3}, {:.3}", state.gaze.x, state.gaze.y)),
-            Span::raw(") | Confidence: "),
-            Span::raw(format!("{:.2}", state.gaze.confidence)),
-        ]),
-        Line::from(vec![
-            Span::raw("Calibration: "),
-            Span::raw(if state.calibration.is_calibrated() {
-                "READY"
-            } else {
-                "NOT CALIBRATED"
-            }),
-        ]),
-    ]
-}
     let header = Paragraph::new(Text::from(vec![
         Line::from(vec![
             Span::raw("EyeTracker CLI | "),
-            Span::styled("Q", Style::new().bold()),
+            Span::styled("Q", Style::new().add_modifier(Modifier::BOLD)),
             Span::raw(" Quit | "),
-            Span::styled("C", Style::new().bold()),
+            Span::styled("C", Style::new().add_modifier(Modifier::BOLD)),
             Span::raw(" Calibrate | "),
-            Span::styled("R", Style::new().bold()),
+            Span::styled("R", Style::new().add_modifier(Modifier::BOLD)),
             Span::raw(" Reset"),
         ]),
     ]))
-    .style(Style::new().on_blue().black())
+    .style(Style::new().bg(Color::Blue).fg(Color::Black))
     .alignment(Alignment::Center);
 
     // Main layout
@@ -252,17 +233,17 @@ fn draw_debug_view(state: &TrackingState) -> Vec<Line<'static>> {
             Span::raw("Gaze: "),
             Span::styled(
                 format!("({:.2}, {:.2})", state.gaze_x, state.gaze_y),
-                Style::new().green(),
+                Style::new().fg(Color::Green),
             ),
             Span::raw(" | Confidence: "),
             Span::styled(
                 format!("{:.0}%", state.confidence * 100.0),
                 if state.confidence > 0.7 {
-                    Style::new().green()
+                    Style::new().fg(Color::Green)
                 } else if state.confidence > 0.4 {
-                    Style::new().yellow()
+                    Style::new().fg(Color::Yellow)
                 } else {
-                    Style::new().red()
+                    Style::new().fg(Color::Red)
                 },
             ),
             Span::raw(" | FPS: "),
@@ -271,10 +252,33 @@ fn draw_debug_view(state: &TrackingState) -> Vec<Line<'static>> {
             Span::raw(format!("{:.1}ms", state.latency_ms)),
         ]),
     ]))
-    .style(Style::new().on_black().white())
+    .style(Style::new().bg(Color::Black).fg(Color::White))
     .alignment(Alignment::Center);
 
     f.render_widget(footer, chunks[2]);
+}
+
+fn draw_debug_view(state: &TrackingState) -> Vec<Line<'static>> {
+    vec![
+        Line::from(vec![
+            Span::raw("FPS: "),
+            Span::raw(format!("{:.1}", state.fps)),
+            Span::raw(" | Latency: "),
+            Span::raw(format!("{:.1}ms", state.latency_ms)),
+            Span::raw(" | Faces: "),
+            Span::raw(if state.face_detected { "1" } else { "0" }),
+        ]),
+        Line::from(vec![
+            Span::raw("Gaze: ("),
+            Span::raw(format!("{:.3}, {:.3}", state.gaze_x, state.gaze_y)),
+            Span::raw(") | Confidence: "),
+            Span::raw(format!("{:.2}", state.confidence)),
+        ]),
+        Line::from(vec![
+            Span::raw("Status: "),
+            Span::raw(if state.face_detected { "TRACKING" } else { "NO FACE" }),
+        ]),
+    ]
 }
 
 fn draw_gaze_view(state: &TrackingState) -> Vec<Line<'static>> {
@@ -300,7 +304,7 @@ fn draw_gaze_view(state: &TrackingState) -> Vec<Line<'static>> {
             Span::raw("Looking at: "),
             Span::styled(
                 format!("({:.2}, {:.2})", state.gaze_x, state.gaze_y),
-                Style::new().green(),
+                Style::new().fg(Color::Green),
             ),
         ]),
     ]
