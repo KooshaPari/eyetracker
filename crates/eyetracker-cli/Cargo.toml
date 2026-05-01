@@ -1,0 +1,39 @@
+[package]
+name = "eyetracker-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Command-line eye tracker with real-time gaze estimation"
+license = "MIT"
+authors = ["Phenotype"]
+
+[[bin]]
+name = "eyetracker"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace dependencies
+eyetracker-camera = { path = "../eyetracker-camera" }
+eyetracker-inference = { path = "../eyetracker-inference" }
+eyetracker-core = { path = "../eyetracker-core" }
+eyetracker-domain = { path = "../eyetracker-domain" }
+eyetracker-math = { path = "../eyetracker-math" }
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+anyhow = { workspace = true }
+
+# UI
+crossterm = { workspace = true }
+ratatui = { workspace = true }
+
+# Serialization
+serde_json = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Async utilities
+poll-promise = { workspace = true }
