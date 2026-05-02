@@ -13,9 +13,8 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Text},
-    widgets::Paragraph,
-    Frame, Terminal,
+    text::Line,
+    widgets::Paragraph, Terminal,
 };
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
@@ -98,7 +97,7 @@ pub fn run_calibration(
 fn run_calibration_ui<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     camera_index: usize,
-    num_points: usize,
+    _num_points: usize,
 ) -> Result<Calibrator> {
     // Create camera
     let mut config = CameraConfig::eye_tracking();
@@ -110,7 +109,7 @@ fn run_calibration_ui<B: ratatui::backend::Backend>(
 
     // Create calibrator
     let calibrator = Arc::new(Mutex::new(Calibrator::new()));
-    let estimator = Arc::new(Mutex::new(GazeEstimator::new(None)));
+    let _estimator = Arc::new(Mutex::new(GazeEstimator::new(None)));
 
     // Calibration state
     let mut points = generate_calibration_points();

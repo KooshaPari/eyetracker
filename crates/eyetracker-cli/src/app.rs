@@ -9,7 +9,7 @@ use crossterm::{
 use eyetracker_camera::{Camera, CameraConfig};
 use eyetracker_core::{Calibrator, GazeEstimator};
 use eyetracker_inference::{
-    preprocess_frame, InferencePipeline, InferenceResult, PreprocessOptions,
+    preprocess_frame, InferencePipeline, PreprocessOptions,
 };
 use ratatui::{
     backend::CrosstermBackend,
