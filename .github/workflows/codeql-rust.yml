@@ -20,14 +20,14 @@ jobs:
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: actions/checkout@v6
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: github/codeql-action/init@v4
         with:
           languages: rust
       - name: Autobuild
-        uses: github/codeql-action/autobuild@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: github/codeql-action/autobuild@v4
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:rust"

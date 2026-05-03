@@ -14,5 +14,5 @@ jobs:
   machete:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/repos/repos#get-a-repository","status":"404"}
-      - uses: bnjbvr/cargo-machete@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: bnjbvr/cargo-machete@main
