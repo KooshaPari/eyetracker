@@ -17,12 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/repos/repos#get-a-repository","status":"404"}
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-action@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
 
       - name: Run cargo-audit
-        uses: rustsec/audit-check@v2
+        uses: rustsec/audit-check@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

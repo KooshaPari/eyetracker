@@ -11,7 +11,7 @@ jobs:
   cargo-deny:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-en/cargo-deny-action@v1
+      - uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+      - uses: taiki-en/cargo-deny-action@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
         with:
           command: check
