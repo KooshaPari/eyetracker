@@ -1,4 +1,7 @@
 [workspace]
+[workspace.package]
+
+rust-version = "1.75"
 members = [
   "crates/eyetracker-domain",
   "crates/eyetracker-math",
