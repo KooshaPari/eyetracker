@@ -39,7 +39,7 @@ coverage/
 # Misc
 *.tmp
 *.bak
-*.origCargo.lock
+*.orig
 Cargo.lock
 
 # ===== Standard auto-generated hygiene ignores (do not edit manually) =====
