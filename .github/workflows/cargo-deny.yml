@@ -1,4 +1,7 @@
 name: cargo-deny
+permissions:
+  contents: read
+  pull-requests: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -13,7 +16,7 @@ on:
 
 jobs:
   cargo-deny:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - uses: taiki-en/cargo-deny-action@v1
