@@ -6,7 +6,7 @@
 > - Authority: phenotype-org-governance/SUPERSEDED.md
 
 > **Work state:** SCAFFOLD · **Progress:** `████░░░░░░ 40%`
-> Rust eye-tracking core (9-point calibration, gaze inference, fixation/saccade) + UniFFI Swift/Kotlin bindings. Alpha, pre-0.1.0; APIs in flux, README recently corrected to match actual source. · updated 2026-06-02
+> Rust eye-tracking framework — 9-point calibration, gaze inference, fixation/saccade — with UniFFI Swift/Kotlin bindings. GOAL: the reusable gaze substrate for Phenotype host apps; alpha pre-0.1.0, APIs in flux. · updated 2026-06-02
 
 # eyetracker
 
