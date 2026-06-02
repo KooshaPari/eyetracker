@@ -5,6 +5,9 @@
 > - Branch protection: 1 reviewer required, no force-push
 > - Authority: phenotype-org-governance/SUPERSEDED.md
 
+> **Work state:** SCAFFOLD · **Progress:** `████░░░░░░ 40%`
+> Rust eye-tracking core (9-point calibration, gaze inference, fixation/saccade) + UniFFI Swift/Kotlin bindings. Alpha, pre-0.1.0; APIs in flux, README recently corrected to match actual source. · updated 2026-06-02
+
 # eyetracker
 
 [![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net)
