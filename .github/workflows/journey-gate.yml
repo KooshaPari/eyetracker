@@ -1,4 +1,7 @@
 # =============================================================================
+permissions:
+  contents: read
+  pull-requests: read
 # Journey Gate — Reusable Workflow
 # =============================================================================
 # Canonical source: phenotype-infra/docs/governance/ci-journey-gate.yml
@@ -19,6 +22,10 @@
 # =============================================================================
 
 name: Journey Gate
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 
 on:
   push:
@@ -50,12 +57,12 @@ env:
 jobs:
   journey-gate:
     name: Journey Verification
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       # ---------------------------------------------------------------------
       # 1. Install runtime dependencies
@@ -233,7 +240,7 @@ jobs:
   # --------------------------------------------------------------------------
   stub-mode:
     name: Journey Gate — No Manifests Found
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: journey-gate
     if: needs.journey-gate.result == 'failure' && needs.journey-gate.outputs.MANIFEST_COUNT == '0'
     steps:

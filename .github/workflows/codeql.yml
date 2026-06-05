@@ -1,4 +1,8 @@
 name: CodeQL
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 
 on:
   push:
@@ -16,7 +20,7 @@ permissions:
 jobs:
   analyze:
     name: Analyze Rust
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -24,17 +28,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: github/codeql-action/init@7c1e4cf0b20d7c1872b26569c00ba908797a59bf # v4
         with:
           languages: rust
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: github/codeql-action/autobuild@7c1e4cf0b20d7c1872b26569c00ba908797a59bf # v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: github/codeql-action/analyze@7c1e4cf0b20d7c1872b26569c00ba908797a59bf # v4
         with:
           category: "/language:rust"
