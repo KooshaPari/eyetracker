@@ -8,8 +8,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+      - uses: Swatinem/rust-cache@874b06e0d3f63371f9ddbee43d4c8ebc73021583
       - run: cargo test --all-features --workspace
       - run: cargo clippy --all-features -- -D warnings 2>/dev/null || cargo check
