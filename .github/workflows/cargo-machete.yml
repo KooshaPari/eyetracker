@@ -19,4 +19,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: bnjbvr/cargo-machete@main
+      - uses: bnjbvr/cargo-machete@fbb3fa79e64f5c1b1c0ce8e2cd4b65eef5d76c70 # pinned from @main
