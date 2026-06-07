@@ -1,4 +1,4 @@
-name: Trufflehog Secrets Scan
+name: TruffleHog Secrets Scan
 on:
   push:
     branches: [main]
@@ -6,12 +6,15 @@ on:
 
 jobs:
   trufflehog:
+    name: TruffleHog scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-      - uses: trufflehog/actions/setup@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
-      - run: trufflehog github --only-verified --no-update
-        env:
-          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+      - uses: trufflesecurity/trufflehog@75add79b929b263dae147d2e5bcf0daf292165cf
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified --fail --no-update
