@@ -1,4 +1,11 @@
 name: Cargo Audit
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 
 on:
   workflow_dispatch:
@@ -7,10 +14,6 @@ on:
   push:
     branches: [main]
   pull_request:
-
-permissions:
-  contents: read
-
 jobs:
   audit:
     name: Cargo Audit
@@ -25,4 +28,4 @@ jobs:
       - name: Run cargo-audit
         uses: rustsec/audit-check
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}
