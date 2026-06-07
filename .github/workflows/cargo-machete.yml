@@ -9,6 +9,13 @@ on:
   schedule:
     - cron: '47 6 * * 4'  # weekly Thursday
   workflow_dispatch:
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 
 jobs:
   machete:
