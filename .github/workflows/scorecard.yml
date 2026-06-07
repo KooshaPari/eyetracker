@@ -19,16 +19,16 @@ jobs:
       actions: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: actions/checkout
         with:
           persist-credentials: false
       - name: Run Scorecard
-        uses: ossf/scorecard-action@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: ossf/scorecard-action
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
       - name: Upload SARIF results
-        uses: github/codeql-action/upload-sarif@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: github/codeql-action/upload-sarif
         with:
           sarif_file: results.sarif
