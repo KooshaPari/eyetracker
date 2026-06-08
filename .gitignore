@@ -40,3 +40,5 @@ coverage/
 *.tmp
 *.bak
 *.orig
+/worktrees/
+/*-wtrees/
