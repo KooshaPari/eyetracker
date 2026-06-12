@@ -1,4 +1,24 @@
+# Phenotype-org standard .gitignore — Rust
+# Source: https://github.com/KooshaPari/phenotype-tooling/blob/main/templates/gitignore-rust
+
 # Build artifacts
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Repo-specific lines preserved from prior .gitignore:
 target/
 dist/
 build/
@@ -7,36 +27,18 @@ build/
 *.dylib
 *.rlib
 *.rmeta
-
-# Dependencies
 node_modules/
 vendor/
 .venv/
 venv/
 .env
 .env.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
 *.swo
 *~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
 npm-debug.log*
-
-# Test
 coverage/
 *.lcov
 .nyc_output/
-
-# Misc
 *.tmp
 *.bak
 *.orig
