@@ -1,3 +1,6 @@
+# Phenotype-org standard cliff.toml v2 (2026-06-11)
+# Source: https://github.com/KooshaPari/phenotype-tooling/blob/main/templates/cliff.toml
+# Changes from v1: adds ⚠️ **BREAKING** suffix for commits with `!` prefix
 # git-cliff config (Phenotype-org standard)
 # https://git-cliff.org/docs/configuration
 
