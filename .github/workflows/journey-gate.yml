@@ -19,6 +19,10 @@
 # =============================================================================
 
 name: Journey Gate
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 
 on:
   push:
@@ -55,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@{"message":"Not Found","documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"404"}
+        uses: actions/checkout@v4
 
       # ---------------------------------------------------------------------
       # 1. Install runtime dependencies
