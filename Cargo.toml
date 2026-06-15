@@ -10,3 +10,6 @@ resolver = "2"
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.40", features = ["full"] }
+
+[dependencies]
+clap-ext = { git = "https://github.com/KooshaPari/clap-ext", tag = "v0.1.0" }
