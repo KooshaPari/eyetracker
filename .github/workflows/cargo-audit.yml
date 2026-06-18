@@ -5,6 +5,9 @@ concurrency:
 
 
 on:
+
+
+timeout-minutes: 10
   workflow_dispatch:
   schedule:
     - cron: "0 2 * * 3"
