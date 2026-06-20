@@ -22,6 +22,16 @@ pub struct DashboardData {
     pub face_detected: bool,
     pub resolution: String,
     pub events: String,
+    /// Drift status: "OK" | "Warning" | "Critical" | "-"
+    pub drift_status: String,
+    /// Average drift in degrees (rounded to 2dp)
+    pub drift_degrees: String,
+    /// Current display label (e.g., "Display #1 1920x1080")
+    pub display_label: String,
+    /// Whether the active display has a calibration loaded
+    pub display_calibrated: bool,
+    /// Privacy mode banner text
+    pub privacy_banner: String,
 }
 
 /// Run the TUI event loop with ratatui
@@ -121,6 +131,7 @@ fn draw_dashboard(
             Constraint::Length(3),   // Title
             Constraint::Length(8),   // Stats row
             Constraint::Length(9),   // Gaze visualization
+            Constraint::Length(7),   // Drift / Display / Privacy
             Constraint::Min(3),      // Sparklines
             Constraint::Length(3),   // Controls help
         ])
@@ -280,26 +291,111 @@ fn draw_dashboard(
         }
     }
 
-    // Right: calibration status placeholder
-    let cal_block = Block::default()
-        .title(" Calibration ")
+    // Right: drift + display + privacy status (3 horizontal panels)
+    let info_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(33),
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
+        ])
+        .split(viz_chunks[1]);
+
+    // (1) Drift panel — colored by status
+    let drift_color = match data.as_ref().map(|d| d.drift_status.as_str()) {
+        Some("Critical") => Color::Red,
+        Some("Warning") => Color::Yellow,
+        _ => Color::Green,
+    };
+    let drift_block = Block::default()
+        .title(" Drift ")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::Yellow));
-    let cal_text = Paragraph::new(vec![
-        Line::from("Not calibrated"),
+        .border_style(Style::default().fg(drift_color));
+    let drift_status_str = data
+        .as_ref()
+        .map(|d| d.drift_status.as_str())
+        .unwrap_or("-");
+    let drift_deg_str = data
+        .as_ref()
+        .map(|d| d.drift_degrees.as_str())
+        .unwrap_or("-");
+    let drift_lines = vec![
+        Line::from(vec![
+            Span::styled("Status: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                drift_status_str,
+                Style::default().fg(drift_color).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("Drift:  ", Style::default().fg(Color::DarkGray)),
+            Span::raw(format!("{}°", drift_deg_str)),
+        ]),
+    ];
+    let drift_para = Paragraph::new(drift_lines)
+        .block(drift_block)
+        .alignment(Alignment::Center);
+    f.render_widget(drift_para, info_chunks[0]);
+
+    // (2) Display panel
+    let disp_block = Block::default()
+        .title(" Display ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::Cyan));
+    let disp_label = data
+        .as_ref()
+        .map(|d| d.display_label.clone())
+        .unwrap_or_else(|| "-".to_string());
+    let cal_state = data
+        .as_ref()
+        .map(|d| if d.display_calibrated { "✓ calibrated" } else { "○ not calibrated" })
+        .unwrap_or("-");
+    let disp_lines = vec![
+        Line::from(disp_label),
         Line::from(""),
-        Line::from("Run: eyetracker --calibrate"),
-    ])
-    .block(cal_block)
-    .alignment(Alignment::Center);
-    f.render_widget(cal_text, viz_chunks[1]);
+        Line::from(vec![
+            Span::styled(
+                cal_state,
+                Style::default().fg(if data.as_ref().map(|d| d.display_calibrated).unwrap_or(false) {
+                    Color::Green
+                } else {
+                    Color::Yellow
+                }),
+            ),
+        ]),
+    ];
+    let disp_para = Paragraph::new(disp_lines)
+        .block(disp_block)
+        .alignment(Alignment::Center);
+    f.render_widget(disp_para, info_chunks[1]);
+
+    // (3) Privacy panel
+    let privacy_block = Block::default()
+        .title(" Privacy ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(if data.is_some() {
+            Color::Green
+        } else {
+            Color::Gray
+        }));
+    let privacy_text = data
+        .as_ref()
+        .map(|d| d.privacy_banner.clone())
+        .unwrap_or_else(|| "Local only".to_string());
+    let privacy_para = Paragraph::new(privacy_text)
+        .block(privacy_block)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(Color::White));
+    f.render_widget(privacy_para, info_chunks[2]);
 
     // Sparklines for FPS history
     let sparkline_area = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(chunks[3]);
+        .split(chunks[4]);
 
     // FPS sparkline
     let fps_spark_block = Block::default()
@@ -337,5 +433,5 @@ fn draw_dashboard(
     ]))
     .alignment(Alignment::Center)
     .style(Style::default().fg(Color::DarkGray));
-    f.render_widget(help_text, chunks[4]);
+    f.render_widget(help_text, chunks[5]);
 }

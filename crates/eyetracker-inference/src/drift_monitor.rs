@@ -348,6 +348,7 @@ mod fastrand {
         });
     }
 
+    #[allow(dead_code)]
     pub fn f32() -> f32 {
         STATE.with(|s| {
             let mut x = s.get();

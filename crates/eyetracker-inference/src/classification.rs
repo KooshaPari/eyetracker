@@ -50,6 +50,7 @@ struct GazeSample {
     x: f32,
     y: f32,
     timestamp: Instant,
+    #[allow(dead_code)]
     confidence: f32,
 }
 

@@ -13,6 +13,7 @@ dirs = "5"
 image = "0.25"
 nalgebra = "0.33"
 serde = { workspace = true }
+serde_json = "1"
 tracing = "0.1"
 thiserror = { workspace = true }
 

@@ -1,6 +1,8 @@
 //! eyetracker-ffi: UniFFI binding layer for Swift/Kotlin interop
 //! Traces to: FR-EYE-INTEROP-001, FR-EYE-INTEROP-002, FR-EYE-INTEROP-003
 
+pub mod modern;
+
 use eyetracker_core::CalibrationState as CoreCalibrationState;
 use eyetracker_core::Calibrator as CoreCalibrator;
 use eyetracker_domain::Point as DomainPoint;

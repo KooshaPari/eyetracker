@@ -13,15 +13,21 @@
 //! - FR-EYE-CAL-003: Calibration persistence (calibration.rs)
 //! - FR-EYE-CAL-004: Drift monitoring & recalibration trigger (drift_monitor.rs)
 //! - FR-EYE-CAL-005: Multi-monitor calibration (multi_monitor.rs)
+//! - FR-EYE-ACCESS-001: Dwell-click selection (accessibility.rs)
+//! - FR-EYE-ACCESS-002: Scroll-by-gaze (accessibility.rs)
+//! - FR-EYE-INTEROP-003: FocalPoint connector (focalpoint.rs)
 //! - FR-EYE-PRIVACY-001/002/003: On-device processing, no default cloud,
 //!   recording consent (privacy.rs)
 
+pub mod accessibility;
 pub mod calibration;
 pub mod classification;
 pub mod drift_monitor;
 pub mod face_mesh;
+pub mod focalpoint;
 pub mod gaze_estimator;
 pub mod multi_monitor;
+pub mod onnx_detector;
 pub mod pipeline;
 pub mod privacy;
 pub mod smoothing;
