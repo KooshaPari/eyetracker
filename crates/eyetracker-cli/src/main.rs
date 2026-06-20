@@ -1,0 +1,105 @@
+//! Eye tracker CLI - Real-time eye tracking from webcam
+//!
+//! Provides a terminal UI showing gaze tracking data, calibration,
+//! and performance metrics using the eyetracker pipeline.
+
+mod app;
+mod calibration;
+mod ui;
+
+use anyhow::Result;
+use clap::Parser;
+
+/// Real-time eye tracking from webcam
+#[derive(Parser, Debug)]
+#[command(name = "eyetracker", version, about)]
+struct Args {
+    /// Camera device index
+    #[arg(short, long, default_value = "0")]
+    camera_index: usize,
+
+    /// Camera resolution width
+    #[arg(long, default_value = "640")]
+    width: u32,
+
+    /// Camera resolution height
+    #[arg(long, default_value = "480")]
+    height: u32,
+
+    /// Target frame rate
+    #[arg(short, long, default_value = "60")]
+    fps: u32,
+
+    /// Run calibration mode
+    #[arg(short, long)]
+    calibrate: bool,
+
+    /// Gaze smoothing factor (0.0-0.95)
+    #[arg(long, default_value = "0.6")]
+    smoothing: f32,
+
+    /// Screen distance in mm
+    #[arg(long, default_value = "600")]
+    screen_distance: f32,
+
+    /// Show debug overlay with face mesh
+    #[arg(long)]
+    debug: bool,
+
+    /// Dump gaze data as CSV to stdout
+    #[arg(long)]
+    csv: bool,
+
+    /// Duration in seconds (0 = unlimited)
+    #[arg(short, long, default_value = "0")]
+    duration: u64,
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "eyetracker=info,warn".into()),
+        )
+        .with_target(false)
+        .init();
+
+    // Build camera config
+    let camera_config = eyetracker_camera::CameraConfig {
+        target_fps: args.fps,
+        width: args.width,
+        height: args.height,
+        camera_index: args.camera_index,
+        low_light_mode: true,
+    };
+
+    // Build pipeline config
+    let pipeline_config = eyetracker_inference::PipelineConfig {
+        camera: camera_config,
+        use_geometric_fallback: true,
+        smoothing: args.smoothing,
+        screen_distance_mm: args.screen_distance,
+        debug_overlay: args.debug,
+    };
+
+    if args.calibrate {
+        println!("Starting calibration mode...");
+        calibration::run_calibration(&pipeline_config)?;
+        return Ok(());
+    }
+
+    if args.csv {
+        println!("Starting CSV dump mode...");
+        app::run_csv_dump(&pipeline_config, args.duration)?;
+        return Ok(());
+    }
+
+    // Run interactive TUI mode
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))?;
+    let result = app::run_tui(&mut terminal, &pipeline_config, args.duration);
+    let _ = crossterm::terminal::disable_raw_mode();
+    result
+}

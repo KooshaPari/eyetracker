@@ -1,0 +1,18 @@
+[package]
+name = "eyetracker-inference"
+version = "0.1.0-alpha"
+edition = "2021"
+description = "ML inference pipeline for eye tracking"
+
+[dependencies]
+eyetracker-domain = { path = "../eyetracker-domain" }
+eyetracker-camera = { path = "../eyetracker-camera" }
+anyhow = "1"
+image = "0.25"
+serde = { workspace = true }
+tracing = "0.1"
+thiserror = { workspace = true }
+
+[lib]
+name = "eyetracker_inference"
+path = "src/lib.rs"

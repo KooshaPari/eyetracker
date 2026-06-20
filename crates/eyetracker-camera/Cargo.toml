@@ -1,0 +1,18 @@
+[package]
+name = "eyetracker-camera"
+version = "0.1.0-alpha"
+edition = "2021"
+description = "Webcam capture module for eye tracking"
+
+[dependencies]
+nokhwa = { version = "0.10", default-features = false, features = ["input-native"] }
+anyhow = "1"
+image = "0.25"
+serde = { workspace = true }
+tracing = "0.1"
+thiserror = { workspace = true }
+tokio = { workspace = true }
+
+[lib]
+name = "eyetracker_camera"
+path = "src/lib.rs"
