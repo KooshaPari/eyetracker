@@ -17,9 +17,11 @@ pub struct DashboardData {
     pub processing_ms: f64,
     pub frame_number: u64,
     pub gaze_vector: Option<String>,
+    pub smoothed_gaze: Option<String>,
     pub confidence: String,
     pub face_detected: bool,
     pub resolution: String,
+    pub events: String,
 }
 
 /// Run the TUI event loop with ratatui
@@ -198,9 +200,21 @@ fn draw_dashboard(
         f.render_widget(gaze_para, stats_chunks[2]);
 
         // Status block
+        let smoothed_str = d
+            .smoothed_gaze
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("-");
+        let events_str = if d.events.is_empty() {
+            String::from("-")
+        } else {
+            d.events.clone()
+        };
         let status_lines = vec![
             Line::from(format!("Face: {}", if d.face_detected { "✓" } else { "✗" })),
             Line::from(format!("Confidence: {}", d.confidence)),
+            Line::from(format!("Smoothed: {}", smoothed_str)),
+            Line::from(format!("Events: {}", events_str)),
             Line::from(format!("Res: {}", d.resolution)),
             Line::from(format!("Frame: {}", d.frame_number)),
         ];

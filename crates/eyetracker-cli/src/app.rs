@@ -1,11 +1,14 @@
 //! Main application logic for the eye tracker CLI
 
 use anyhow::Result;
-use eyetracker_inference::{PipelineConfig, TrackingPipeline, TrackingResult};
+use eyetracker_inference::{
+    classification::GazeEvent, PipelineConfig,
+    TrackingPipeline, TrackingResult,
+};
 use ratatui::Terminal;
 use std::io::Stdout;
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::ui;
 
@@ -71,6 +74,23 @@ pub fn run_tui(
                     g.combined.x, g.combined.y, g.combined.z
                 )
             });
+            let smoothed = result.smoothed_gaze.map(|(x, y)| {
+                format!("({:.1}, {:.1})", x, y)
+            });
+            let events_summary = if result.events.is_empty() {
+                String::new()
+            } else {
+                result
+                    .events
+                    .iter()
+                    .map(|e| match e {
+                        GazeEvent::FixationStart { .. } => "F+".to_string(),
+                        GazeEvent::FixationEnd { .. } => "F-".to_string(),
+                        GazeEvent::Saccade { .. } => "S".to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",")
+            };
             let confidence = result
                 .gaze
                 .as_ref()
@@ -82,9 +102,11 @@ pub fn run_tui(
                 processing_ms: result.processing_time_ms,
                 frame_number: result.frame.frame_number,
                 gaze_vector: gaze,
+                smoothed_gaze: smoothed,
                 confidence,
                 face_detected: result.face.is_some(),
                 resolution: format!("{}x{}", result.frame.width, result.frame.height),
+                events: events_summary,
             }
         },
         duration_secs,

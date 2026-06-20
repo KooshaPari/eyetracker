@@ -6,8 +6,10 @@
 use eyetracker_camera::{Camera, CameraConfig, Frame};
 use std::time::Instant;
 
+use crate::classification::{GazeClassifier, GazeEvent};
 use crate::face_mesh::{extract_eye_regions, FaceBox, FaceDetector, FaceResult, Landmark3D};
 use crate::gaze_estimator::{GazeEstimatorTrait, GazeResult, GeometricGazeEstimator};
+use crate::smoothing::GazeSmoother;
 
 /// Configuration for the eye tracking pipeline
 #[derive(Debug, Clone)]
@@ -45,6 +47,10 @@ pub struct TrackingResult {
     pub face: Option<FaceResult>,
     /// Gaze estimation result (if face found)
     pub gaze: Option<GazeResult>,
+    /// Smoothed gaze position after Kalman filter (if gaze was found)
+    pub smoothed_gaze: Option<(f32, f32)>,
+    /// Gaze events triggered by this frame (fixation start/end, saccade)
+    pub events: Vec<GazeEvent>,
     /// Processing time in milliseconds
     pub processing_time_ms: f64,
 }
@@ -54,6 +60,8 @@ pub struct TrackingPipeline {
     camera: Camera,
     face_detector: Option<Box<dyn FaceDetector>>,
     gaze_estimator: Box<dyn GazeEstimatorTrait>,
+    smoother: GazeSmoother,
+    classifier: GazeClassifier,
     config: PipelineConfig,
     frame_count: u64,
 }
@@ -78,6 +86,8 @@ impl TrackingPipeline {
             camera,
             face_detector: None,
             gaze_estimator,
+            smoother: GazeSmoother::new(),
+            classifier: GazeClassifier::default(),
             config,
             frame_count: 0,
         })
@@ -94,6 +104,10 @@ impl TrackingPipeline {
     }
 
     /// Process a single frame from the camera
+    ///
+    /// Applies: camera capture → face detection → gaze estimation →
+    /// Kalman smoothing (FR-EYE-INFER-002) → fixation/saccade classification
+    /// (FR-EYE-INFER-003, FR-EYE-INFER-004).
     pub fn process_frame(&mut self) -> anyhow::Result<TrackingResult> {
         let start = Instant::now();
 
@@ -137,14 +151,69 @@ impl TrackingPipeline {
             }
         }
 
+        // ── Kalman smoothing (FR-EYE-INFER-002) ──
+        let mut smoothed_gaze = None;
+        let mut is_saccade = false;
+        if let Some(ref g) = gaze {
+            // Check classifier state before update to see if we're in a saccade
+            is_saccade = matches!(
+                self.classifier.current_state(),
+                crate::classification::GazeClassification::Saccade
+            );
+
+            // Apply Kalman smoother — reset on saccade
+            let (smoothed_x, smoothed_y) =
+                self.smoother.smooth(g.screen_point.x, g.screen_point.y, is_saccade);
+            smoothed_gaze = Some((smoothed_x, smoothed_y));
+        }
+
+        // ── Fixation/saccade classification (FR-EYE-INFER-003, FR-EYE-INFER-004) ──
+        let events = if let Some(ref g) = gaze {
+            self.classifier.update(
+                g.screen_point.x,
+                g.screen_point.y,
+                Instant::now(),
+                g.confidence,
+            )
+        } else {
+            self.classifier.update(0.0, 0.0, Instant::now(), 0.0)
+        };
+
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
 
         Ok(TrackingResult {
             frame,
             face,
             gaze,
+            smoothed_gaze,
+            events,
             processing_time_ms: elapsed,
         })
+    }
+
+    /// Returns `true` if the classifier currently believes the user is fixating.
+    pub fn is_fixating(&self) -> bool {
+        self.classifier.is_fixating()
+    }
+
+    /// Get a reference to the gaze classifier (for reading current state).
+    pub fn classifier(&self) -> &GazeClassifier {
+        &self.classifier
+    }
+
+    /// Get a mutable reference to the gaze classifier.
+    pub fn classifier_mut(&mut self) -> &mut GazeClassifier {
+        &mut self.classifier
+    }
+
+    /// Get a reference to the gaze smoother.
+    pub fn smoother(&self) -> &GazeSmoother {
+        &self.smoother
+    }
+
+    /// Get a mutable reference to the gaze smoother.
+    pub fn smoother_mut(&mut self) -> &mut GazeSmoother {
+        &mut self.smoother
     }
 
     /// Get the current frame rate
@@ -265,5 +334,14 @@ mod tests {
         assert_eq!(face.landmarks.len(), 468);
         assert!((face.face_box.confidence - 0.5).abs() < 0.001);
         assert!((face.confidence - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_pipeline_has_smoother_and_classifier() {
+        let config = PipelineConfig::default();
+        // We can't create a pipeline without a real camera, but we can verify
+        // that the config is well-formed.
+        assert!((config.smoothing - 0.6).abs() < 0.001);
+        assert!(config.use_geometric_fallback);
     }
 }

@@ -34,6 +34,14 @@ struct Args {
     #[arg(short, long)]
     calibrate: bool,
 
+    /// Load saved calibration on startup and print quality
+    #[arg(long)]
+    load_calibration: bool,
+
+    /// List available cameras and exit
+    #[arg(long)]
+    list_cameras: bool,
+
     /// Gaze smoothing factor (0.0-0.95)
     #[arg(long, default_value = "0.6")]
     smoothing: f32,
@@ -66,6 +74,33 @@ fn main() -> Result<()> {
         )
         .with_target(false)
         .init();
+
+    // Handle --list-cameras
+    if args.list_cameras {
+        let cameras = eyetracker_camera::list_cameras();
+        if cameras.is_empty() {
+            println!("No cameras found.");
+            return Ok(());
+        }
+        println!("=== Available Cameras ===");
+        for cam in &cameras {
+            println!("  [{}] {} — {}", cam.index, cam.name, cam.description);
+        }
+        return Ok(());
+    }
+
+    // Handle --load-calibration
+    if args.load_calibration {
+        match calibration::load_calibration()? {
+            Some(cal) => {
+                println!("Calibration loaded (quality: {:.1}%)", cal.quality * 100.0);
+            }
+            None => {
+                println!("No calibration file found. Run --calibrate first.");
+            }
+        }
+        return Ok(());
+    }
 
     // Build camera config
     let camera_config = eyetracker_camera::CameraConfig {
