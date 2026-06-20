@@ -42,8 +42,9 @@ pub struct CalibrationSample {
     pub point: CalibrationPoint,
     /// Collected gaze vectors during the sample period
     pub gaze_samples: Vec<(f32, f32, f32)>, // (x, y, z) gaze vectors
-    /// Timestamp of collection (not persisted)
+    /// Timestamp of collection (used for drift monitoring per FR-EYE-CAL-004)
     #[serde(skip, default = "Instant::now")]
+    #[allow(dead_code)]
     pub timestamp: Instant,
 }
 

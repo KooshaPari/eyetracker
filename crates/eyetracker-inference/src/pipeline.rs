@@ -152,20 +152,19 @@ impl TrackingPipeline {
         }
 
         // ── Kalman smoothing (FR-EYE-INFER-002) ──
-        let mut smoothed_gaze = None;
-        let mut is_saccade = false;
-        if let Some(ref g) = gaze {
-            // Check classifier state before update to see if we're in a saccade
-            is_saccade = matches!(
+        let smoothed_gaze = if let Some(ref g) = gaze {
+            // Reset Kalman state if the classifier currently believes we're
+            // in a saccade (FR-EYE-INFER-002 requirement)
+            let is_saccade = matches!(
                 self.classifier.current_state(),
                 crate::classification::GazeClassification::Saccade
             );
-
-            // Apply Kalman smoother — reset on saccade
             let (smoothed_x, smoothed_y) =
                 self.smoother.smooth(g.screen_point.x, g.screen_point.y, is_saccade);
-            smoothed_gaze = Some((smoothed_x, smoothed_y));
-        }
+            Some((smoothed_x, smoothed_y))
+        } else {
+            None
+        };
 
         // ── Fixation/saccade classification (FR-EYE-INFER-003, FR-EYE-INFER-004) ──
         let events = if let Some(ref g) = gaze {
