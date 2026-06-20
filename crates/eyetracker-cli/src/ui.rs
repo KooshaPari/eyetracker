@@ -32,16 +32,26 @@ pub struct DashboardData {
     pub display_calibrated: bool,
     /// Privacy mode banner text
     pub privacy_banner: String,
+    /// True when the drift monitor emitted a Critical recalibration event
+    /// that the user has not yet dismissed (FR-EYE-CAL-004). The TUI
+    /// surfaces a "[R] Recalibrate?" prompt when this is true.
+    pub recalibration_pending: bool,
 }
 
 /// Run the TUI event loop with ratatui
+///
+/// `dismiss_flag` is an `Arc<AtomicBool>` the UI sets when the user
+/// presses `d` (FR-EYE-CAL-004). The data closure can read + clear it
+/// to drive `DriftMonitor::dismiss()` on the AppState.
 pub fn run_event_loop<T>(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     rx: &Receiver<T>,
     data_fn: impl Fn(&T) -> DashboardData,
     duration_secs: u64,
+    dismiss_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<()> {
     use crossterm::event::{self, Event, KeyCode};
+    use std::sync::atomic::Ordering;
 
     let start = Instant::now();
     let mut fps_history: Vec<f64> = Vec::with_capacity(60);
@@ -66,6 +76,10 @@ pub fn run_event_loop<T>(
                     KeyCode::Char('r') => {
                         fps_history.clear();
                         last_frame_time.clear();
+                    }
+                    KeyCode::Char('d') => {
+                        // FR-EYE-CAL-004: signal the data closure to dismiss
+                        dismiss_flag.store(true, Ordering::SeqCst);
                     }
                     _ => {}
                 }
@@ -303,8 +317,8 @@ fn draw_dashboard(
 
     // (1) Drift panel — colored by status
     let drift_color = match data.as_ref().map(|d| d.drift_status.as_str()) {
-        Some("Critical") => Color::Red,
-        Some("Warning") => Color::Yellow,
+        Some("RECALIBRATE") => Color::Red,
+        Some("WARN") => Color::Yellow,
         _ => Color::Green,
     };
     let drift_block = Block::default()
@@ -320,7 +334,7 @@ fn draw_dashboard(
         .as_ref()
         .map(|d| d.drift_degrees.as_str())
         .unwrap_or("-");
-    let drift_lines = vec![
+    let mut drift_lines = vec![
         Line::from(vec![
             Span::styled("Status: ", Style::default().fg(Color::DarkGray)),
             Span::styled(
@@ -333,6 +347,21 @@ fn draw_dashboard(
             Span::raw(format!("{}°", drift_deg_str)),
         ]),
     ];
+    // FR-EYE-CAL-004: surface the auto-triggered recalibration dialog
+    if data.as_ref().map(|d| d.recalibration_pending).unwrap_or(false) {
+        drift_lines.push(Line::from(""));
+        drift_lines.push(Line::from(vec![
+            Span::styled(
+                "Recalibrate?",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        drift_lines.push(Line::from(vec![
+            Span::styled("Press ", Style::default().fg(Color::DarkGray)),
+            Span::styled("[R]", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(" to dismiss", Style::default().fg(Color::DarkGray)),
+        ]));
+    }
     let drift_para = Paragraph::new(drift_lines)
         .block(drift_block)
         .alignment(Alignment::Center);
@@ -423,15 +452,21 @@ fn draw_dashboard(
     f.render_widget(proc_spark, sparkline_area[1]);
 
     // Help bar
-    let help_text = Paragraph::new(Line::from(vec![
+    let mut help_spans = vec![
         Span::styled(" [q] ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Span::raw("Quit  "),
         Span::styled(" [r] ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Span::raw("Reset  "),
         Span::styled(" [Esc] ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Span::raw("Exit"),
-    ]))
-    .alignment(Alignment::Center)
-    .style(Style::default().fg(Color::DarkGray));
+    ];
+    if data.as_ref().map(|d| d.recalibration_pending).unwrap_or(false) {
+        help_spans.push(Span::raw("  "));
+        help_spans.push(Span::styled(" [d] ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
+        help_spans.push(Span::raw("Dismiss recalibration"));
+    }
+    let help_text = Paragraph::new(Line::from(help_spans))
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(Color::DarkGray));
     f.render_widget(help_text, chunks[5]);
 }

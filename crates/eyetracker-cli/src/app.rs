@@ -8,13 +8,14 @@ use anyhow::Result;
 use eyetracker_inference::{
     accessibility::AccessibilityManager,
     classification::GazeEvent,
-    drift_monitor::{DriftMonitor, DriftMonitorConfig, DriftSeverity},
+    drift_monitor::{DriftMonitor, DriftMonitorConfig, DriftSeverity, RecalibrationEvent},
     multi_monitor::{detect_active_display, MultiMonitorCalibration},
     privacy::{PrivacyManager, PrivacyMode},
     PipelineConfig, TrackingPipeline, TrackingResult,
 };
 use ratatui::Terminal;
 use std::io::Stdout;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -31,6 +32,13 @@ struct AppState {
     /// duration persists across frames.
     #[allow(dead_code)]
     accessibility: AccessibilityManager,
+    /// Most recent recalibration event from the drift monitor. When Some
+    /// and not dismissed, the TUI should surface a "Recalibrate?" prompt
+    /// (FR-EYE-CAL-004).
+    last_recalibration_event: Option<RecalibrationEvent>,
+    /// Smoothed gaze observed at the moment the most recent drift event
+    /// fired — used by the TUI to colour the drift panel.
+    last_recalibration_position: Option<(f32, f32)>,
 }
 
 impl AppState {
@@ -41,23 +49,52 @@ impl AppState {
             });
         let mut accessibility = AccessibilityManager::default();
         accessibility.dwell.set_dwell_duration(dwell_duration);
+        let mut drift_monitor = DriftMonitor::new(DriftMonitorConfig::default());
+        // Register the active display's baseline so the monitor has
+        // something to compare against. The user will refine this in
+        // --calibrate; for tracking-only mode we anchor at screen center
+        // and let the monitor observe real drift.
+        drift_monitor.register_baseline(active_display.clone(), 0.5, 0.5, 0.0);
         Self {
-            drift_monitor: DriftMonitor::new(DriftMonitorConfig::default()),
+            drift_monitor,
             monitor_store: MultiMonitorCalibration::load().unwrap_or_default(),
             privacy: PrivacyManager::new(),
             active_display,
             accessibility,
+            last_recalibration_event: None,
+            last_recalibration_position: None,
         }
     }
 
-    /// Drift status string for the TUI panel
-    fn drift_status(&self) -> &'static str {
-        // We have no RecalibrationEvent in the AppState API yet; the TUI
-        // reads the live drift signal from the pipeline via this fn by
-        // asking the monitor for its last emitted severity. Since the
-        // monitor is a private field, we expose a coarse status here:
-        // until samples are recorded we report "OK".
-        "OK"
+    /// Drift status string for the TUI panel. FR-EYE-CAL-004: this
+    /// surfaces the most recent RecalibrationEvent (or "OK" if none).
+    fn drift_status(&self) -> (String, String) {
+        match &self.last_recalibration_event {
+            Some(ev) if !self.drift_monitor.is_dismissed() => {
+                let label = match ev.severity {
+                    DriftSeverity::Critical => "RECALIBRATE",
+                    DriftSeverity::Warning => "WARN",
+                    DriftSeverity::None => "OK",
+                };
+                (
+                    label.to_string(),
+                    format!("{:.2}°", ev.drift_degrees),
+                )
+            }
+            _ => ("OK".to_string(), "—".to_string()),
+        }
+    }
+
+    /// Whether the TUI should render the "Recalibrate?" prompt
+    /// (FR-EYE-CAL-004).
+    fn recalibration_pending(&self) -> bool {
+        match &self.last_recalibration_event {
+            Some(ev) => {
+                !self.drift_monitor.is_dismissed()
+                    && matches!(ev.severity, DriftSeverity::Critical)
+            }
+            None => false,
+        }
     }
 
     /// Format the active display label
@@ -143,6 +180,8 @@ pub fn run_tui(
 
     // TUI event loop
     let state_clone = state.clone();
+    let dismiss_flag = std::sync::Arc::new(AtomicBool::new(false));
+    let dismiss_flag_closure = dismiss_flag.clone();
     let result = ui::run_event_loop(
         terminal,
         &rx,
@@ -182,26 +221,55 @@ pub fn run_tui(
                 .unwrap_or_else(|| "N/A".to_string());
 
             // Lock-free copy of state for the UI closure
-            let (drift_status, drift_deg_str, display_label, display_calibrated, privacy_banner) = {
+            let (drift_status, drift_deg_str, display_label, display_calibrated, privacy_banner, recal_pending) = {
                 if let Ok(mut s) = state_clone.lock() {
-                    // Feed a sample into the drift monitor for visibility
-                    let _ = s.drift_monitor.record_sample(0.0, 0.0, 0.0); // no-op; data not yet wired in pipeline
-                    let status = s.drift_status();
+                    // FR-EYE-CAL-004: consume any pending dismiss request
+                    if dismiss_flag_closure.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                        s.drift_monitor.dismiss();
+                        s.last_recalibration_event = None;
+                        s.last_recalibration_position = None;
+                        tracing::info!("user dismissed recalibration event");
+                    }
+                    // Feed the actual smoothed gaze into the drift monitor
+                    // so FR-EYE-CAL-004 auto-trigger fires from real data.
+                    if let Some((x, y)) = result.smoothed_gaze {
+                        if let Some(ev) = s
+                            .drift_monitor
+                            .record_sample(x, y, result.gaze.as_ref().map(|g| g.confidence).unwrap_or(0.0))
+                        {
+                            // Capture the diagnostic fields before moving the
+                            // event into AppState so the tracing macro can
+                            // reference them by value.
+                            let drift_deg = ev.drift_degrees;
+                            let severity_dbg = format!("{:?}", ev.severity);
+                            s.last_recalibration_event = Some(ev);
+                            s.last_recalibration_position = Some((x, y));
+                            tracing::warn!(
+                                drift_degrees = drift_deg,
+                                severity = %severity_dbg,
+                                "drift monitor triggered recalibration event"
+                            );
+                        }
+                    }
+                    let (status, deg) = s.drift_status();
                     let label = s.display_label();
                     let cal = s.display_calibrated();
                     let banner = s.privacy_banner();
-                    (status.to_string(), "0.00".to_string(), label, cal, banner)
+                    let pending = s.recalibration_pending();
+                    (status, deg, label, cal, banner, pending)
                 } else {
                     (
                         "-".to_string(),
-                        "-".to_string(),
+                        "0.00".to_string(),
                         "-".to_string(),
                         false,
                         "Local only".to_string(),
+                        false,
                     )
                 }
             };
             let _ = DriftSeverity::None; // keep import used
+            let _ = Ordering::SeqCst; // keep import used
 
             ui::DashboardData {
                 fps,
@@ -218,9 +286,11 @@ pub fn run_tui(
                 display_label,
                 display_calibrated,
                 privacy_banner,
+                recalibration_pending: recal_pending,
             }
         },
         duration_secs,
+        dismiss_flag,
     );
 
     let _ = pipeline.stop();
