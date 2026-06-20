@@ -180,6 +180,17 @@ impl TrackingPipeline {
 
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
 
+        // FR-EYE-INFER-001: log per-inference latency via tracing.
+        // Emitted at debug level so production runs are quiet; verbose
+        // runs (RUST_LOG=eyetracker=debug) will see the full timeline.
+        tracing::debug!(
+            frame = self.frame_count,
+            latency_ms = elapsed,
+            face_detected = face.is_some(),
+            events = events.len(),
+            "pipeline frame"
+        );
+
         Ok(TrackingResult {
             frame,
             face,

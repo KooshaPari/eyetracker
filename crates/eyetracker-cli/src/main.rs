@@ -61,6 +61,11 @@ struct Args {
     /// Duration in seconds (0 = unlimited)
     #[arg(short, long, default_value = "0")]
     duration: u64,
+
+    /// Dwell-click duration in ms (200-1000ms; FR-EYE-ACCESS-001).
+    /// Values outside the spec range are clamped to the nearest boundary.
+    #[arg(long, default_value = "500")]
+    dwell_ms: u64,
 }
 
 fn main() -> Result<()> {
@@ -134,7 +139,8 @@ fn main() -> Result<()> {
 
     // Run interactive TUI mode
     let mut terminal = ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))?;
-    let result = app::run_tui(&mut terminal, &pipeline_config, args.duration);
+    let dwell_duration = std::time::Duration::from_millis(args.dwell_ms);
+    let result = app::run_tui(&mut terminal, &pipeline_config, args.duration, dwell_duration);
     let _ = crossterm::terminal::disable_raw_mode();
     result
 }

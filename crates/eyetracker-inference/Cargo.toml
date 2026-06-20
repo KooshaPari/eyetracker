@@ -20,6 +20,11 @@ thiserror = { workspace = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23"
 
+[dev-dependencies]
+bincode = "1"
+serde_json = "1"
+tempfile = "3"
+
 [lib]
 name = "eyetracker_inference"
 path = "src/lib.rs"

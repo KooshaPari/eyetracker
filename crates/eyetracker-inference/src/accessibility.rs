@@ -150,6 +150,26 @@ impl DwellClickDetector {
     pub fn click_pending(&self) -> bool {
         self.click_pending
     }
+
+    /// Configure the dwell duration. FR-EYE-ACCESS-001 requires
+    /// 200-1000ms; values outside that range are clamped to the
+    /// nearest boundary.
+    pub fn set_dwell_duration(&mut self, duration: Duration) {
+        const MIN: Duration = Duration::from_millis(200);
+        const MAX: Duration = Duration::from_millis(1000);
+        self.config.dwell_duration = if duration < MIN {
+            MIN
+        } else if duration > MAX {
+            MAX
+        } else {
+            duration
+        };
+    }
+
+    /// Current configured dwell duration (FR-EYE-ACCESS-001: 200-1000ms).
+    pub fn dwell_duration(&self) -> Duration {
+        self.config.dwell_duration
+    }
 }
 
 /// Scroll-by-gaze configuration (FR-EYE-ACCESS-002)

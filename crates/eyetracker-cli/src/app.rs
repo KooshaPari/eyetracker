@@ -6,6 +6,7 @@
 
 use anyhow::Result;
 use eyetracker_inference::{
+    accessibility::AccessibilityManager,
     classification::GazeEvent,
     drift_monitor::{DriftMonitor, DriftMonitorConfig, DriftSeverity},
     multi_monitor::{detect_active_display, MultiMonitorCalibration},
@@ -25,19 +26,27 @@ struct AppState {
     monitor_store: MultiMonitorCalibration,
     privacy: PrivacyManager,
     active_display: eyetracker_inference::multi_monitor::DisplayId,
+    /// Configured accessibility manager; future TUI panels will surface
+    /// dwell/scroll actions here. Kept in state so the configured dwell
+    /// duration persists across frames.
+    #[allow(dead_code)]
+    accessibility: AccessibilityManager,
 }
 
 impl AppState {
-    fn new() -> Self {
+    fn new(dwell_duration: std::time::Duration) -> Self {
         let active_display =
             detect_active_display().unwrap_or_else(|_| {
                 eyetracker_inference::multi_monitor::DisplayId::synthetic("main")
             });
+        let mut accessibility = AccessibilityManager::default();
+        accessibility.dwell.set_dwell_duration(dwell_duration);
         Self {
             drift_monitor: DriftMonitor::new(DriftMonitorConfig::default()),
             monitor_store: MultiMonitorCalibration::load().unwrap_or_default(),
             privacy: PrivacyManager::new(),
             active_display,
+            accessibility,
         }
     }
 
@@ -90,12 +99,13 @@ pub fn run_tui(
     terminal: &mut Terminal<ratatui::backend::CrosstermBackend<Stdout>>,
     config: &PipelineConfig,
     duration_secs: u64,
+    dwell_duration: std::time::Duration,
 ) -> Result<()> {
     let mut pipeline = TrackingPipeline::with_config(config.clone())?;
     pipeline.start()?;
 
     let (tx, rx) = mpsc::channel::<TrackingResult>();
-    let state = std::sync::Arc::new(std::sync::Mutex::new(AppState::new()));
+    let state = std::sync::Arc::new(std::sync::Mutex::new(AppState::new(dwell_duration)));
 
     // Spawn processing thread
     let processing_config = config.clone();
