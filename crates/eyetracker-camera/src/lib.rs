@@ -356,6 +356,7 @@ mod tests {
 
 // Helper on PixelFormat (in this module, not conflicting)
 impl PixelFormat {
+    #[allow(dead_code)]
     fn bytes_per_pixel(&self) -> u8 {
         match self {
             PixelFormat::Rgb8 | PixelFormat::Bgr8 => 3,

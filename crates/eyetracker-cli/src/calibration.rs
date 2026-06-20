@@ -6,45 +6,50 @@
 
 use anyhow::Result;
 use eyetracker_inference::{PipelineConfig, TrackingPipeline};
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 /// Calibration point on screen
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalibrationPoint {
     /// Normalized x (0.0 - 1.0)
     pub x: f32,
     /// Normalized y (0.0 - 1.0)
     pub y: f32,
     /// Label for display
-    pub label: &'static str,
+    pub label: Cow<'static, str>,
 }
 
 /// 9-point calibration grid positions (3x3)
 const CALIBRATION_POINTS: &[CalibrationPoint] = &[
-    CalibrationPoint { x: 0.1, y: 0.1, label: "Top-left" },
-    CalibrationPoint { x: 0.5, y: 0.1, label: "Top-center" },
-    CalibrationPoint { x: 0.9, y: 0.1, label: "Top-right" },
-    CalibrationPoint { x: 0.1, y: 0.5, label: "Mid-left" },
-    CalibrationPoint { x: 0.5, y: 0.5, label: "Center" },
-    CalibrationPoint { x: 0.9, y: 0.5, label: "Mid-right" },
-    CalibrationPoint { x: 0.1, y: 0.9, label: "Bottom-left" },
-    CalibrationPoint { x: 0.5, y: 0.9, label: "Bottom-center" },
-    CalibrationPoint { x: 0.9, y: 0.9, label: "Bottom-right" },
+    CalibrationPoint { x: 0.1, y: 0.1, label: Cow::Borrowed("Top-left") },
+    CalibrationPoint { x: 0.5, y: 0.1, label: Cow::Borrowed("Top-center") },
+    CalibrationPoint { x: 0.9, y: 0.1, label: Cow::Borrowed("Top-right") },
+    CalibrationPoint { x: 0.1, y: 0.5, label: Cow::Borrowed("Mid-left") },
+    CalibrationPoint { x: 0.5, y: 0.5, label: Cow::Borrowed("Center") },
+    CalibrationPoint { x: 0.9, y: 0.5, label: Cow::Borrowed("Mid-right") },
+    CalibrationPoint { x: 0.1, y: 0.9, label: Cow::Borrowed("Bottom-left") },
+    CalibrationPoint { x: 0.5, y: 0.9, label: Cow::Borrowed("Bottom-center") },
+    CalibrationPoint { x: 0.9, y: 0.9, label: Cow::Borrowed("Bottom-right") },
 ];
 
 /// Calibration sample collected at a target point
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalibrationSample {
     /// Which calibration point
     pub point: CalibrationPoint,
     /// Collected gaze vectors during the sample period
     pub gaze_samples: Vec<(f32, f32, f32)>, // (x, y, z) gaze vectors
-    /// Timestamp of collection
-    pub timestamp: std::time::Instant,
+    /// Timestamp of collection (used for drift monitoring per FR-EYE-CAL-004)
+    #[serde(skip, default = "Instant::now")]
+    #[allow(dead_code)]
+    pub timestamp: Instant,
 }
 
 /// Calibration result mapping
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalibrationResult {
     /// Per-point samples
     pub samples: Vec<CalibrationSample>,
@@ -103,11 +108,19 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
     println!("Quality: {:.1}%", quality * 100.0);
     println!("Success: {}", if success { "Yes" } else { "No - try again" });
 
-    Ok(CalibrationResult {
+    let result = CalibrationResult {
         samples,
         quality,
         success,
-    })
+    };
+
+    if success {
+        if let Err(e) = save_calibration(&result) {
+            tracing::warn!("Failed to save calibration: {}", e);
+        }
+    }
+
+    Ok(result)
 }
 
 /// Collect gaze samples for a specific target point
@@ -135,7 +148,7 @@ fn collect_samples(
     }
 
     Ok(CalibrationSample {
-        point: *point,
+        point: point.clone(),
         gaze_samples,
         timestamp: std::time::Instant::now(),
     })
@@ -179,4 +192,43 @@ fn compute_calibration_quality(samples: &[CalibrationSample]) -> f32 {
     }
 
     total_score / samples.len() as f32
+}
+
+/// Get the path to the calibration file
+fn calibration_path() -> Result<PathBuf> {
+    let data_dir = dirs::data_local_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine platform data directory"))?;
+    let app_dir = data_dir.join("eyetracker");
+    Ok(app_dir.join("cal.bin"))
+}
+
+/// Save calibration result to disk using bincode serialization
+pub fn save_calibration(result: &CalibrationResult) -> Result<()> {
+    let path = calibration_path()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let encoded = bincode::serialize(result)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize calibration: {}", e))?;
+    std::fs::write(&path, encoded)?;
+    println!("Calibration saved to: {}", path.display());
+    Ok(())
+}
+
+/// Load calibration result from disk
+pub fn load_calibration() -> Result<Option<CalibrationResult>> {
+    let path = calibration_path()?;
+    if !path.exists() {
+        println!("No saved calibration found at: {}", path.display());
+        return Ok(None);
+    }
+    let encoded = std::fs::read(&path)?;
+    let result: CalibrationResult = bincode::deserialize(&encoded)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize calibration: {}", e))?;
+    println!("=== Calibration Loaded ===");
+    println!("  From:    {}", path.display());
+    println!("  Quality: {:.1}%", result.quality * 100.0);
+    println!("  Points:  {}", result.samples.len());
+    println!("  Success: {}", if result.success { "Yes" } else { "No" });
+    Ok(Some(result))
 }

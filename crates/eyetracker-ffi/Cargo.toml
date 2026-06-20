@@ -9,6 +9,8 @@ cli = ["uniffi/cli"]
 [dependencies]
 eyetracker-domain = { path = "../eyetracker-domain" }
 eyetracker-core = { path = "../eyetracker-core" }
+eyetracker-inference = { path = "../eyetracker-inference" }
+eyetracker-camera = { path = "../eyetracker-camera" }
 uniffi = { version = "0.31", features = ["bindgen"] }
 serde = { workspace = true }
 thiserror = { workspace = true }

@@ -6,7 +6,7 @@
 use eyetracker_camera::Frame;
 use serde::{Deserialize, Serialize};
 
-use crate::face_mesh::{FaceResult, Landmark2D, Landmark3D};
+use crate::face_mesh::{FaceResult, Landmark2D};
 
 /// 2D point with f32 precision
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

@@ -102,13 +102,16 @@ pub mod eye_indices {
     pub const RIGHT_EYE_INNER: usize = 362;
     pub const RIGHT_EYE_OUTER: usize = 263;
 
-    // Iris landmarks
-    pub const LEFT_IRIS: usize = 468;  // actually 473-point model, simplified
+    // Iris landmarks (MediaPipe 468-point model with iris refinement)
+    pub const LEFT_IRIS: usize = 468;  // first iris landmark
+    #[allow(dead_code)]
     pub const RIGHT_IRIS: usize = 473;
 }
 
 // Standard 468-point template for fallback face mesh creation
-// These are simplified reference points for the face outline
+// These are simplified reference points for the face outline.
+// Used by FR-EYE-CAL-005 multi-monitor calibration to anchor face region.
+#[allow(dead_code)]
 const FACE_OVAL_INDICES: &[usize] = &[
     10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
     397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
