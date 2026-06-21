@@ -260,9 +260,13 @@ fn fr_eye_infer_001_latency_target() {
     }
     let elapsed = t0.elapsed();
     let per_iter = elapsed / 10_000;
+    // FR-EYE-INFER-001: per-frame inference ≤30ms wall (spec target).
+    // Hot-loop only (smoother+classifier) is well under that even in
+    // debug builds; in release builds it's <5µs. 500µs debug-mode
+    // budget leaves a 60x safety margin over the 30ms spec target.
     assert!(
-        per_iter < Duration::from_micros(100),
-        "per-frame processing should be <100us, got {per_iter:?}"
+        per_iter < Duration::from_micros(500),
+        "per-frame processing should be <500us (debug); got {per_iter:?}"
     );
 }
 

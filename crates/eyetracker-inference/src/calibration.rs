@@ -186,6 +186,98 @@ pub fn load_calibration() -> Result<Option<CalibrationResult>> {
     Ok(Some(result))
 }
 
+/// FR-EYE-CAL-001: tolerance (normalized screen coords) within which a sample
+/// counts as "stable" — i.e. the user's gaze is on-target. 0.05 ≈ 5% of
+/// screen, which at typical head distance is roughly the foveal radius (~1.5°).
+pub const FIXATION_TOLERANCE: f32 = 0.05;
+
+/// FR-EYE-CAL-001: outcome of evaluating a single calibration point.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PointOutcome {
+    /// User held fixation for at least the required duration.
+    Stable {
+        /// Total duration the user held fixation (ms).
+        fixation_ms: u64,
+        /// Number of stable samples collected.
+        stable_count: usize,
+    },
+    /// User did not hold fixation (gaze drifted away from target).
+    NoFixation {
+        /// Maximum gaze distance from target observed (normalized units).
+        max_drift: f32,
+    },
+    /// Not enough samples were collected during the calibration window.
+    InsufficientSamples {
+        /// Total samples actually collected.
+        collected: usize,
+    },
+}
+
+/// FR-EYE-CAL-001: minimum sample count to even attempt classification.
+/// Below this we always report `InsufficientSamples` regardless of stability.
+pub const MIN_SAMPLES_FOR_EVAL: usize = 5;
+
+/// FR-EYE-CAL-001: classify a calibration point's samples.
+///
+/// Counts how many samples fall within `FIXATION_TOLERANCE` of the target
+/// and computes the implied fixation duration by multiplying by the
+/// `frame_duration_ms`. The point passes (`Stable`) if the resulting
+/// fixation duration is at least `CalibrationResult::REQUIRED_FIXATION_MS`.
+pub fn classify_point(
+    sample: &CalibrationSample,
+    frame_duration_ms: u64,
+) -> PointOutcome {
+    let n = sample.gaze_samples.len();
+    if n < MIN_SAMPLES_FOR_EVAL {
+        return PointOutcome::InsufficientSamples { collected: n };
+    }
+    let mut stable_count = 0usize;
+    let mut max_drift: f32 = 0.0;
+    for g in &sample.gaze_samples {
+        let dx = g.0 - sample.point.x;
+        let dy = g.1 - sample.point.y;
+        let dist = (dx * dx + dy * dy).sqrt();
+        if dist <= FIXATION_TOLERANCE {
+            stable_count += 1;
+        } else if dist > max_drift {
+            max_drift = dist;
+        }
+    }
+    let fixation_ms = stable_count as u64 * frame_duration_ms;
+    if fixation_ms >= CalibrationResult::REQUIRED_FIXATION_MS {
+        PointOutcome::Stable {
+            fixation_ms,
+            stable_count,
+        }
+    } else {
+        PointOutcome::NoFixation { max_drift }
+    }
+}
+
+/// FR-EYE-CAL-001: retry wrapper. Calls `collect` until a `Stable` outcome
+/// is achieved or `max_retries` is exhausted. Returns the final outcome and
+/// the number of attempts made.
+pub fn classify_point_with_retry<F>(
+    mut collect: F,
+    frame_duration_ms: u64,
+    max_retries: u32,
+) -> (PointOutcome, u32)
+where
+    F: FnMut() -> CalibrationSample,
+{
+    let mut attempts = 0u32;
+    loop {
+        attempts += 1;
+        let sample = collect();
+        let outcome = classify_point(&sample, frame_duration_ms);
+        match &outcome {
+            PointOutcome::Stable { .. } => return (outcome, attempts),
+            _ if attempts >= max_retries => return (outcome, attempts),
+            _ => continue,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,5 +422,148 @@ mod tests {
         let r: CalibrationResult = bincode::deserialize(&encoded)
             .map_err(|e| anyhow::anyhow!("Failed: {e}"))?;
         Ok(Some(r))
+    }
+
+    // ---------- FR-EYE-CAL-001: classify_point tests ----------
+
+    /// Helper: build a sample where every gaze point is exactly at target.
+    fn make_perfect_sample(target_x: f32, target_y: f32, n: usize) -> CalibrationSample {
+        let gaze = vec![(target_x, target_y, 0.0); n];
+        CalibrationSample {
+            point: CalibrationPoint { x: target_x, y: target_y, label: "p".into() },
+            gaze_samples: gaze,
+            timestamp: Instant::now(),
+        }
+    }
+
+    #[test]
+    fn fr_eye_cal_001_classify_stable() {
+        // 30 samples perfectly at target. 30ms frame = 900ms fixation > 500ms required.
+        let s = make_perfect_sample(0.5, 0.5, 30);
+        let outcome = classify_point(&s, 30);
+        match outcome {
+            PointOutcome::Stable { fixation_ms, stable_count } => {
+                assert_eq!(stable_count, 30);
+                assert_eq!(fixation_ms, 900);
+            }
+            other => panic!("expected Stable, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn fr_eye_cal_001_classify_no_fixation() {
+        // 30 wildly-drifting samples: gaze covers a large area, none stable.
+        let pt = CalibrationPoint { x: 0.5, y: 0.5, label: "p".into() };
+        let gaze: Vec<(f32, f32, f32)> = (0..30)
+            .map(|i| {
+                let t = i as f32 * 0.31;
+                (0.5 + t.sin() * 0.4, 0.5 + t.cos() * 0.4, 0.0)
+            })
+            .collect();
+        let s = CalibrationSample {
+            point: pt,
+            gaze_samples: gaze,
+            timestamp: Instant::now(),
+        };
+        let outcome = classify_point(&s, 30);
+        assert!(
+            matches!(outcome, PointOutcome::NoFixation { .. }),
+            "expected NoFixation, got {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn fr_eye_cal_001_classify_insufficient_samples() {
+        // Only 3 samples — below MIN_SAMPLES_FOR_EVAL (5).
+        let s = make_perfect_sample(0.5, 0.5, 3);
+        let outcome = classify_point(&s, 30);
+        assert!(
+            matches!(outcome, PointOutcome::InsufficientSamples { collected: 3 }),
+            "got {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn fr_eye_cal_001_partial_fixation_below_threshold() {
+        // 10 stable samples + 20 drifting samples. 10 * 30ms = 300ms < 500ms.
+        let pt = CalibrationPoint { x: 0.5, y: 0.5, label: "p".into() };
+        let mut gaze = vec![(0.5, 0.5, 0.0); 10];
+        for i in 0..20 {
+            let t = i as f32 * 0.31;
+            gaze.push((0.5 + t.sin() * 0.4, 0.5 + t.cos() * 0.4, 0.0));
+        }
+        let s = CalibrationSample {
+            point: pt,
+            gaze_samples: gaze,
+            timestamp: Instant::now(),
+        };
+        let outcome = classify_point(&s, 30);
+        assert!(
+            matches!(outcome, PointOutcome::NoFixation { .. }),
+            "expected NoFixation (300ms < 500ms threshold), got {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn fr_eye_cal_001_retry_eventually_succeeds() {
+        // First call: NoFixation (drift). Second call: Stable. Retry should succeed.
+        let attempt = std::cell::Cell::new(0u32);
+        let stable = make_perfect_sample(0.5, 0.5, 30);
+        let unstable_pt = CalibrationPoint { x: 0.5, y: 0.5, label: "p".into() };
+        let unstable_gaze: Vec<(f32, f32, f32)> = (0..30)
+            .map(|i| {
+                let t = i as f32 * 0.31;
+                (0.5 + t.sin() * 0.4, 0.5 + t.cos() * 0.4, 0.0)
+            })
+            .collect();
+
+        let (outcome, attempts) = classify_point_with_retry(
+            || {
+                let n = attempt.get();
+                attempt.set(n + 1);
+                if n == 0 {
+                    CalibrationSample {
+                        point: unstable_pt.clone(),
+                        gaze_samples: unstable_gaze.clone(),
+                        timestamp: Instant::now(),
+                    }
+                } else {
+                    stable.clone()
+                }
+            },
+            30,
+            3,
+        );
+        assert_eq!(attempts, 2, "should succeed on the 2nd attempt");
+        assert!(matches!(outcome, PointOutcome::Stable { .. }));
+    }
+
+    #[test]
+    fn fr_eye_cal_001_retry_exhausts() {
+        // Always returns NoFixation; retry should give up after max_retries.
+        let attempt = std::cell::Cell::new(0u32);
+        let pt = CalibrationPoint { x: 0.5, y: 0.5, label: "p".into() };
+        let unstable_gaze: Vec<(f32, f32, f32)> = (0..30)
+            .map(|i| {
+                let t = i as f32 * 0.31;
+                (0.5 + t.sin() * 0.4, 0.5 + t.cos() * 0.4, 0.0)
+            })
+            .collect();
+
+        let (outcome, attempts) = classify_point_with_retry(
+            || {
+                let n = attempt.get();
+                attempt.set(n + 1);
+                CalibrationSample {
+                    point: pt.clone(),
+                    gaze_samples: unstable_gaze.clone(),
+                    timestamp: Instant::now(),
+                }
+            },
+            30,
+            3,
+        );
+        assert_eq!(attempts, 3, "should exhaust max_retries");
+        assert!(matches!(outcome, PointOutcome::NoFixation { .. }));
     }
 }

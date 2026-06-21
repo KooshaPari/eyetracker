@@ -73,6 +73,18 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
 
     let mut samples = Vec::new();
 
+    // FR-EYE-CAL-001: each target point must be retried (up to
+    // MAX_RETRIES_PER_POINT times) if fewer than MIN_SAMPLES_FOR_EVAL
+    // are collected during the dwell window, or if the user did not
+    // hold fixation for the required duration. This enforces the
+    // spec clause "system shall dismiss and request retry if
+    // insufficient samples collected".
+    use eyetracker_inference::calibration::{
+        classify_point, PointOutcome, MAX_RETRIES_PER_POINT,
+    };
+    // Approx 33ms per frame at the 30 FPS calibration polling rate.
+    let frame_duration_ms: u64 = 33;
+
     for (i, point) in CALIBRATION_POINTS.iter().enumerate() {
         println!(
             "\n[{}/{}] Look at {} ({:.0}%, {:.0}%)",
@@ -82,18 +94,44 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
             point.x * 100.0,
             point.y * 100.0,
         );
-        println!("Press Enter when ready...");
 
-        input.clear();
-        std::io::stdin().read_line(&mut input)?;
+        let mut attempt = 0;
+        let sample = loop {
+            attempt += 1;
+            println!(
+                "  Attempt {}/{} — press Enter when ready...",
+                attempt,
+                MAX_RETRIES_PER_POINT
+            );
 
-        // Collect samples for 3 seconds
-        let sample = collect_samples(&mut pipeline, point, Duration::from_secs(3))?;
-        let count = sample.gaze_samples.len();
-        println!("  Collected {} samples (press Enter to continue)", count);
+            input.clear();
+            std::io::stdin().read_line(&mut input)?;
 
-        input.clear();
-        std::io::stdin().read_line(&mut input)?;
+            let raw = collect_samples(&mut pipeline, point, Duration::from_secs(3))?;
+            let outcome = classify_point(&raw, frame_duration_ms);
+            let count = raw.gaze_samples.len();
+            println!("  Collected {} samples → {:?}", count, outcome);
+
+            match &outcome {
+                PointOutcome::Stable { .. } => break raw,
+                _ if attempt >= MAX_RETRIES_PER_POINT => {
+                    println!(
+                        "  Max retries ({}); accepting this point anyway.",
+                        MAX_RETRIES_PER_POINT
+                    );
+                    break raw;
+                }
+                PointOutcome::InsufficientSamples { .. } => {
+                    println!("  Insufficient samples — please look at the target and try again.");
+                }
+                PointOutcome::NoFixation { max_drift } => {
+                    println!(
+                        "  Gaze drifted ({:.1}% off) — keep your eyes on the target and try again.",
+                        max_drift * 100.0
+                    );
+                }
+            }
+        };
 
         samples.push(sample);
     }
