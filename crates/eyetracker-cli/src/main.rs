@@ -5,6 +5,7 @@
 
 mod app;
 mod calibration;
+mod mouse;
 mod ui;
 
 use anyhow::Result;
@@ -66,6 +67,22 @@ struct Args {
     /// Values outside the spec range are clamped to the nearest boundary.
     #[arg(long, default_value = "500")]
     dwell_ms: u64,
+
+    /// Disable mouse output (FR-EYE-ACCESS-001).
+    /// When set, dwell-click and gaze-scroll actions are logged but no
+    /// real mouse events are posted. Useful for headless tests or when
+    /// the user wants to observe the pipeline without driving the cursor.
+    #[arg(long)]
+    no_mouse_output: bool,
+
+    /// Screen width in pixels (for translating normalized gaze to display coords).
+    /// Defaults to 1920 (Full HD); override for HiDPI or smaller displays.
+    #[arg(long, default_value = "1920")]
+    screen_width: u32,
+
+    /// Screen height in pixels.
+    #[arg(long, default_value = "1080")]
+    screen_height: u32,
 }
 
 fn main() -> Result<()> {
@@ -133,14 +150,30 @@ fn main() -> Result<()> {
 
     if args.csv {
         println!("Starting CSV dump mode...");
-        app::run_csv_dump(&pipeline_config, args.duration)?;
+        let dwell_duration = std::time::Duration::from_millis(args.dwell_ms);
+        app::run_csv_dump(
+            &pipeline_config,
+            args.duration,
+            dwell_duration,
+            args.no_mouse_output,
+            args.screen_width,
+            args.screen_height,
+        )?;
         return Ok(());
     }
 
     // Run interactive TUI mode
     let mut terminal = ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))?;
     let dwell_duration = std::time::Duration::from_millis(args.dwell_ms);
-    let result = app::run_tui(&mut terminal, &pipeline_config, args.duration, dwell_duration);
+    let result = app::run_tui(
+        &mut terminal,
+        &pipeline_config,
+        args.duration,
+        dwell_duration,
+        args.no_mouse_output,
+        args.screen_width,
+        args.screen_height,
+    );
     let _ = crossterm::terminal::disable_raw_mode();
     result
 }

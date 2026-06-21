@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use eyetracker_inference::{
-    accessibility::AccessibilityManager,
+    accessibility::AccessibilityAction,
     classification::GazeEvent,
     drift_monitor::{DriftMonitor, DriftMonitorConfig, DriftSeverity, RecalibrationEvent},
     multi_monitor::{detect_active_display, MultiMonitorCalibration},
@@ -19,6 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Instant;
 
+use crate::mouse;
 use crate::ui;
 
 /// Shared state surfaced to the TUI
@@ -180,6 +181,9 @@ pub fn run_tui(
     config: &PipelineConfig,
     duration_secs: u64,
     dwell_duration: std::time::Duration,
+    mouse_output_enabled: bool,
+    screen_width: u32,
+    screen_height: u32,
 ) -> Result<()> {
     let mut pipeline = TrackingPipeline::with_config(config.clone())?;
     pipeline.start()?;
@@ -299,15 +303,32 @@ pub fn run_tui(
                     let is_fixating = result.events.iter().any(|e| {
                         matches!(e, GazeEvent::FixationStart { .. })
                     });
-                    let action = s.tick_accessibility(
+                    let action: AccessibilityAction = s.tick_accessibility(
                         result.smoothed_gaze,
                         is_fixating,
                         result.frame.width as f32,
                         result.frame.height as f32,
                     );
                     let action_dbg = format!("{:?}", action);
-                    if !matches!(action, eyetracker_inference::accessibility::AccessibilityAction::None) {
+                    if !matches!(action, AccessibilityAction::None) {
                         tracing::debug!(action = %action_dbg, "accessibility action triggered");
+                    }
+                    // FR-EYE-ACCESS-001/002: dispatch the action to the OS so
+                    // the user actually sees the click/scroll. On macOS this
+                    // posts a CGEvent; on other platforms it's a no-op (still
+                    // logged via tracing::debug).
+                    if let Some((nx, ny)) = result.smoothed_gaze {
+                        let frame_w = result.frame.width.max(1) as f32;
+                        let frame_h = result.frame.height.max(1) as f32;
+                        let nx_norm = (nx + frame_w / 2.0) / frame_w;
+                        let ny_norm = (ny + frame_h / 2.0) / frame_h;
+                        let (sx, sy) = mouse::normalized_to_screen(
+                            nx_norm.clamp(0.0, 1.0),
+                            ny_norm.clamp(0.0, 1.0),
+                            screen_width,
+                            screen_height,
+                        );
+                        mouse::dispatch(action, sx, sy, mouse_output_enabled);
                     }
                     s.last_accessibility_action = Some(action);
                     let (status, deg) = s.drift_status();
@@ -361,13 +382,23 @@ pub fn run_tui(
 }
 
 /// Run CSV dump mode (no TUI, just output CSV data)
-pub fn run_csv_dump(config: &PipelineConfig, duration_secs: u64) -> Result<()> {
+pub fn run_csv_dump(
+    config: &PipelineConfig,
+    duration_secs: u64,
+    dwell_duration: std::time::Duration,
+    mouse_output_enabled: bool,
+    screen_width: u32,
+    screen_height: u32,
+) -> Result<()> {
     let mut pipeline = TrackingPipeline::with_config(config.clone())?;
     pipeline.start()?;
 
-    // CSV header
-    println!("timestamp_ms,frame,processing_ms,gaze_x,gaze_y,gaze_z,confidence,face_detected");
+    // CSV header (extra columns for the accessibility action + dispatch target)
+    println!(
+        "timestamp_ms,frame,processing_ms,gaze_x,gaze_y,gaze_z,confidence,face_detected,accessibility_action,screen_x,screen_y"
+    );
 
+    let state = std::sync::Arc::new(std::sync::Mutex::new(AppState::new(dwell_duration)));
     let start = Instant::now();
     loop {
         if duration_secs > 0 && start.elapsed().as_secs() >= duration_secs {
@@ -381,8 +412,42 @@ pub fn run_csv_dump(config: &PipelineConfig, duration_secs: u64) -> Result<()> {
                     .as_ref()
                     .map(|g| (g.combined.x, g.combined.y, g.combined.z, g.confidence))
                     .unwrap_or((0.0, 0.0, 0.0, 0.0));
+
+                // Tick accessibility on each frame; dispatch to OS (or no-op).
+                let (action_dbg, sx, sy) = if let Ok(mut s) = state.lock() {
+                    let is_fixating = result.events.iter().any(|e| {
+                        matches!(e, GazeEvent::FixationStart { .. })
+                    });
+                    let action: AccessibilityAction = s.tick_accessibility(
+                        result.smoothed_gaze,
+                        is_fixating,
+                        result.frame.width as f32,
+                        result.frame.height as f32,
+                    );
+                    let mut sx_f = 0.0;
+                    let mut sy_f = 0.0;
+                    if let Some((nx, ny)) = result.smoothed_gaze {
+                        let frame_w = result.frame.width.max(1) as f32;
+                        let frame_h = result.frame.height.max(1) as f32;
+                        let nx_norm = (nx + frame_w / 2.0) / frame_w;
+                        let ny_norm = (ny + frame_h / 2.0) / frame_h;
+                        let (px, py) = mouse::normalized_to_screen(
+                            nx_norm.clamp(0.0, 1.0),
+                            ny_norm.clamp(0.0, 1.0),
+                            screen_width,
+                            screen_height,
+                        );
+                        sx_f = px;
+                        sy_f = py;
+                        mouse::dispatch(action, px, py, mouse_output_enabled);
+                    }
+                    (format!("{:?}", action), sx_f, sy_f)
+                } else {
+                    ("None".to_string(), 0.0, 0.0)
+                };
+
                 println!(
-                    "{:.1},{},{:.2},{:.4},{:.4},{:.4},{:.4},{}",
+                    "{:.1},{},{:.2},{:.4},{:.4},{:.4},{:.4},{},{},{:.1},{:.1}",
                     timestamp,
                     result.frame.frame_number,
                     result.processing_time_ms,
@@ -391,6 +456,9 @@ pub fn run_csv_dump(config: &PipelineConfig, duration_secs: u64) -> Result<()> {
                     gz,
                     conf,
                     result.face.is_some(),
+                    action_dbg,
+                    sx,
+                    sy,
                 );
             }
             Err(e) => {
