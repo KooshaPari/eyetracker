@@ -15,7 +15,7 @@ use clap::Parser;
 #[command(name = "eyetracker", version, about)]
 struct Args {
     /// Camera device index
-    #[arg(short, long, default_value = "0")]
+    #[arg(short = 'i', long, default_value = "0")]
     camera_index: usize,
 
     /// Camera resolution width

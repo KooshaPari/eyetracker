@@ -36,6 +36,10 @@ pub struct DashboardData {
     /// that the user has not yet dismissed (FR-EYE-CAL-004). The TUI
     /// surfaces a "[R] Recalibrate?" prompt when this is true.
     pub recalibration_pending: bool,
+    /// Most recent accessibility action: "None" | "DwellStarted" |
+    /// "DwellCancelled" | "Click" | "ScrollUp" | "ScrollDown".
+    /// FR-EYE-ACCESS-001 (dwell-click) + FR-EYE-ACCESS-002 (scroll).
+    pub last_accessibility_action: String,
 }
 
 /// Run the TUI event loop with ratatui
@@ -242,6 +246,7 @@ fn draw_dashboard(
             Line::from(format!("Events: {}", events_str)),
             Line::from(format!("Res: {}", d.resolution)),
             Line::from(format!("Frame: {}", d.frame_number)),
+            Line::from(format!("A11y:  {}", d.last_accessibility_action)),
         ];
         let status_block = Block::default()
             .title(" Status ")
@@ -465,6 +470,11 @@ fn draw_dashboard(
         help_spans.push(Span::styled(" [d] ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
         help_spans.push(Span::raw("Dismiss recalibration"));
     }
+    // FR-EYE-ACCESS-001: surface dwell-click in the help bar whenever
+    // the user's fixation is being monitored (configurable via --dwell-ms)
+    help_spans.push(Span::raw("  "));
+    help_spans.push(Span::styled(" dwell ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)));
+    help_spans.push(Span::raw("= fixate to click"));
     let help_text = Paragraph::new(Line::from(help_spans))
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::DarkGray));

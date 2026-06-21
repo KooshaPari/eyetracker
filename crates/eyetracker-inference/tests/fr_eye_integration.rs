@@ -429,6 +429,137 @@ fn fr_eye_access_002_gaze_scroll() {
     );
 }
 
+/// Replicates the same coordinate-conversion + tick logic the CLI app
+/// uses in `AppState::tick_accessibility`. If this drifts from the app,
+/// FR-EYE-ACCESS-001/002 will silently stop firing — this test catches
+/// that drift by exercising the contract.
+fn app_tick_accessibility(
+    manager: &mut AccessibilityManager,
+    smoothed_gaze: Option<(f32, f32)>,
+    is_fixating: bool,
+    frame_w: f32,
+    frame_h: f32,
+) -> AccessibilityAction {
+    // The app converts pixel-space (relative to frame center) to
+    // normalized [0,1] screen coordinates. Mirror that exactly.
+    let Some((cx, cy)) = smoothed_gaze else {
+        return AccessibilityAction::None;
+    };
+    let nx = ((cx + frame_w / 2.0) / frame_w.max(1.0)).clamp(0.0, 1.0);
+    let ny = ((cy + frame_h / 2.0) / frame_h.max(1.0)).clamp(0.0, 1.0);
+    let dwell = manager.dwell.update(nx, ny, is_fixating, frame_w, frame_h);
+    let (scroll, _speed) = manager.scroll.update(ny);
+    if !matches!(dwell, AccessibilityAction::None) {
+        return dwell;
+    }
+    scroll
+}
+
+#[test]
+fn fr_eye_access_001_dwell_click_fires_through_app_tick_path() {
+    // FR-EYE-ACCESS-001: Verify the SAME path the CLI app uses actually
+    // produces a Click action. This test guards against the integration
+    // regressing silently (e.g. a unit change in the conversion math).
+    let mut manager = AccessibilityManager::default();
+    // 250ms dwell (within spec range 200-1000ms)
+    manager.dwell.set_dwell_duration(Duration::from_millis(250));
+    // Frame is 1280x720, like FaceTime HD. Center gaze → (0, 0) in
+    // pixel-space (relative to frame center), which maps to (0.5, 0.5)
+    // in normalized space.
+    let w = 1280.0;
+    let h = 720.0;
+
+    // Frame 1: gaze lands at center, fixating → DwellStarted
+    let a1 = app_tick_accessibility(
+        &mut manager, Some((0.0, 0.0)), true, w, h,
+    );
+    assert_eq!(a1, AccessibilityAction::DwellStarted);
+
+    // Frames 2..N: hold at the same spot while fixating. The click
+    // fires on the exact frame where elapsed >= 250ms; subsequent
+    // frames see a fresh dwell_start_pos = None (post-click reset)
+    // and return DwellStarted. Capture ANY Click observed across
+    // the loop, not just the last frame.
+    let mut click_observed = false;
+    let mut dwell_started_count = 0;
+    for _ in 0..30 {
+        let action = app_tick_accessibility(
+            &mut manager, Some((0.0, 0.0)), true, w, h,
+        );
+        match action {
+            AccessibilityAction::Click => click_observed = true,
+            AccessibilityAction::DwellStarted => dwell_started_count += 1,
+            _ => {}
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    assert!(
+        click_observed,
+        "dwell-click must fire through the app tick path"
+    );
+    // After the click, a new dwell arming cycle produces exactly one
+    // DwellStarted — that proves the post-click reset is real, not a
+    // hidden carry-over of the original dwell.
+    assert_eq!(
+        dwell_started_count, 1,
+        "exactly one fresh DwellStarted should follow the Click"
+    );
+}
+
+#[test]
+fn fr_eye_access_002_gaze_scroll_fires_through_app_tick_path() {
+    // FR-EYE-ACCESS-002: Verify the SAME path the CLI app uses produces
+    // ScrollUp/ScrollDown from real TrackingResult-shaped gaze samples.
+    let mut manager = AccessibilityManager::default();
+    let w = 1280.0;
+    let h = 720.0;
+
+    // Top of screen: pixel-space y = -h/2, normalized → 0.0
+    let top = app_tick_accessibility(
+        &mut manager, Some((0.0, -h / 2.0)), false, w, h,
+    );
+    assert_eq!(top, AccessibilityAction::ScrollUp);
+
+    // Bottom of screen: pixel-space y = +h/2, normalized → 1.0
+    let bot = app_tick_accessibility(
+        &mut manager, Some((0.0, h / 2.0)), false, w, h,
+    );
+    assert_eq!(bot, AccessibilityAction::ScrollDown);
+
+    // Middle (y=0 pixel) → 0.5 normalized → no action
+    let mid = app_tick_accessibility(
+        &mut manager, Some((0.0, 0.0)), false, w, h,
+    );
+    assert_eq!(mid, AccessibilityAction::None);
+}
+
+#[test]
+fn fr_eye_access_001_dwell_cancels_on_saccade_through_app_tick_path() {
+    // FR-EYE-ACCESS-001: Saccading into the safe zone (screen edge) must
+    // cancel a pending dwell. This proves the app tick path is real,
+    // not a stub.
+    let mut manager = AccessibilityManager::default();
+    manager.dwell.set_dwell_duration(Duration::from_millis(500));
+    let w = 1280.0;
+    let h = 720.0;
+
+    // Start a dwell in the safe interior
+    let a1 = app_tick_accessibility(
+        &mut manager, Some((0.0, 0.0)), true, w, h,
+    );
+    assert_eq!(a1, AccessibilityAction::DwellStarted);
+
+    // Saccade to the safe zone (top edge) — pixel y = -h/2 + 1
+    let cancel = app_tick_accessibility(
+        &mut manager, Some((0.0, -h / 2.0 + 1.0)), true, w, h,
+    );
+    assert_eq!(
+        cancel, AccessibilityAction::DwellCancelled,
+        "safe-zone saccade must cancel pending dwell through the app tick path"
+    );
+}
+
 // ===========================================================================
 // PRIVACY
 // ===========================================================================

@@ -27,10 +27,9 @@ struct AppState {
     monitor_store: MultiMonitorCalibration,
     privacy: PrivacyManager,
     active_display: eyetracker_inference::multi_monitor::DisplayId,
-    /// Configured accessibility manager; future TUI panels will surface
-    /// dwell/scroll actions here. Kept in state so the configured dwell
-    /// duration persists across frames.
-    #[allow(dead_code)]
+    /// Owns the dwell-click + scroll-by-gaze state machines. Updated on
+    /// every frame via `tick_accessibility`; the resulting action is
+    /// surfaced to the TUI via `last_accessibility_action`.
     accessibility: AccessibilityManager,
     /// Most recent recalibration event from the drift monitor. When Some
     /// and not dismissed, the TUI should surface a "Recalibrate?" prompt
@@ -39,6 +38,10 @@ struct AppState {
     /// Smoothed gaze observed at the moment the most recent drift event
     /// fired — used by the TUI to colour the drift panel.
     last_recalibration_position: Option<(f32, f32)>,
+    /// Most recent accessibility action triggered (dwell-click / scroll).
+    /// Single-frame signals like Click or DwellStarted linger here so the
+    /// TUI can render a flash; the next frame clears or replaces it.
+    last_accessibility_action: Option<eyetracker_inference::accessibility::AccessibilityAction>,
 }
 
 impl AppState {
@@ -63,6 +66,7 @@ impl AppState {
             accessibility,
             last_recalibration_event: None,
             last_recalibration_position: None,
+            last_accessibility_action: None,
         }
     }
 
@@ -128,6 +132,45 @@ impl AppState {
                 )
             }
         }
+    }
+
+    /// Feed the latest gaze + fixation state into the accessibility
+    /// detectors. Returns the action triggered this frame (or None).
+    /// FR-EYE-ACCESS-001 (dwell-click) + FR-EYE-ACCESS-002 (scroll).
+    fn tick_accessibility(
+        &mut self,
+        smoothed_gaze: Option<(f32, f32)>,
+        is_fixating: bool,
+        frame_w: f32,
+        frame_h: f32,
+    ) -> eyetracker_inference::accessibility::AccessibilityAction {
+        // Convert pixel-space (relative to frame center) into normalized
+        // [0,1] screen coordinates for the accessibility detectors.
+        let Some((cx, cy)) = smoothed_gaze else {
+            return eyetracker_inference::accessibility::AccessibilityAction::None;
+        };
+        let nx = (cx + frame_w / 2.0) / frame_w.max(1.0);
+        let ny = (cy + frame_h / 2.0) / frame_h.max(1.0);
+        let nx = nx.clamp(0.0, 1.0);
+        let ny = ny.clamp(0.0, 1.0);
+
+        // Dwell-click consumes the fixating flag.
+        let dwell_action = self.accessibility.dwell.update(nx, ny, is_fixating, frame_w, frame_h);
+
+        // Scroll-by-gaze is independent of fixation (top/bottom zones).
+        let (scroll_action, _speed) = self.accessibility.scroll.update(ny);
+
+        // Dwell state machine takes precedence over scroll while fixating.
+        if !matches!(dwell_action, eyetracker_inference::accessibility::AccessibilityAction::None) {
+            return dwell_action;
+        }
+        scroll_action
+    }
+
+    /// Most recent accessibility action (for the TUI panel)
+    #[allow(dead_code)]
+    fn last_action(&self) -> Option<eyetracker_inference::accessibility::AccessibilityAction> {
+        self.last_accessibility_action
     }
 }
 
@@ -221,7 +264,7 @@ pub fn run_tui(
                 .unwrap_or_else(|| "N/A".to_string());
 
             // Lock-free copy of state for the UI closure
-            let (drift_status, drift_deg_str, display_label, display_calibrated, privacy_banner, recal_pending) = {
+            let (drift_status, drift_deg_str, display_label, display_calibrated, privacy_banner, recal_pending, last_action_dbg) = {
                 if let Ok(mut s) = state_clone.lock() {
                     // FR-EYE-CAL-004: consume any pending dismiss request
                     if dismiss_flag_closure.swap(false, std::sync::atomic::Ordering::SeqCst) {
@@ -251,12 +294,28 @@ pub fn run_tui(
                             );
                         }
                     }
+                    // FR-EYE-ACCESS-001/002: feed the live gaze + fixation
+                    // state into the accessibility detectors.
+                    let is_fixating = result.events.iter().any(|e| {
+                        matches!(e, GazeEvent::FixationStart { .. })
+                    });
+                    let action = s.tick_accessibility(
+                        result.smoothed_gaze,
+                        is_fixating,
+                        result.frame.width as f32,
+                        result.frame.height as f32,
+                    );
+                    let action_dbg = format!("{:?}", action);
+                    if !matches!(action, eyetracker_inference::accessibility::AccessibilityAction::None) {
+                        tracing::debug!(action = %action_dbg, "accessibility action triggered");
+                    }
+                    s.last_accessibility_action = Some(action);
                     let (status, deg) = s.drift_status();
                     let label = s.display_label();
                     let cal = s.display_calibrated();
                     let banner = s.privacy_banner();
                     let pending = s.recalibration_pending();
-                    (status, deg, label, cal, banner, pending)
+                    (status, deg, label, cal, banner, pending, action_dbg)
                 } else {
                     (
                         "-".to_string(),
@@ -265,6 +324,7 @@ pub fn run_tui(
                         false,
                         "Local only".to_string(),
                         false,
+                        "None".to_string(),
                     )
                 }
             };
@@ -287,6 +347,7 @@ pub fn run_tui(
                 display_calibrated,
                 privacy_banner,
                 recalibration_pending: recal_pending,
+                last_accessibility_action: last_action_dbg,
             }
         },
         duration_secs,
