@@ -1,16 +1,16 @@
 <!--
-propagated-from: KooshaPari/phenotype-registry @ chore/l7-001-curation-snapshot
-date: 2026-06-17
-source-commit: a1aa44660
+propagated-from: KooshaPari/phenotype-registry @ chore/l7-010-taxonomy-rerender
+date: 2026-06-21
+source-commit: 2026-06-21-rerender
 do-not-edit-locally: regenerate via scripts/propagate-intent-to-repos.py
                      or update in the source-of-truth registry repo
 -->
 ---
 repo: "eyetracker"
-role: unknown
+role: product / app
 status: active
 archived: false
-last_boundary_review: 2026-06-20
+last_boundary_review: 2026-06-21
 review_cadence: 30d
 in_scope:
   - "<to be filled>"
@@ -38,10 +38,10 @@ out_of_scope:
 
 ## Last Boundary Review
 
-**Date:** 2026-06-20
-**Reviewer:** forge subagent (L7-007 archived-marker pass)
-**Worklog / finding:** `worklogs/L7-007-archived-marker-pass-2026-06-20.json`
+**Date:** 2026-06-21
+**Reviewer:** forge subagent (L7-010 taxonomy rerender)
+**Worklog / finding:** `worklogs/L7-010-taxonomy-rerender-2026-06-21.json`
 **Decisions:**
-- Initial scaffolding; archived state per L7-007.
+- Role taxonomy refresh per ECOSYSTEM_MAP.md §1 (12-role model).
 
-**Next review:** 2026-07-20
+**Next review:** 2026-07-21

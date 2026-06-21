@@ -1,17 +1,17 @@
 <!--
-propagated-from: KooshaPari/phenotype-registry @ chore/l7-001-curation-snapshot
-date: 2026-06-17
-source-commit: a1aa44660
+propagated-from: KooshaPari/phenotype-registry @ chore/l7-010-taxonomy-rerender
+date: 2026-06-21
+source-commit: 2026-06-21-rerender
 do-not-edit-locally: regenerate via scripts/propagate-intent-to-repos.py
                      or update in the source-of-truth registry repo
 -->
 ---
 repo: "eyetracker"
 aliases: []
-role: unknown
+role: product / app
 status: active
 archived: false
-last_verified: 2026-06-20
+last_verified: 2026-06-21
 bound_prompts: 21
 bound_plans: 0
 bound_responses: 0
@@ -77,4 +77,5 @@ See: [`docs/boundary/eyetracker.md`](../boundary/eyetracker.md)
 
 | Date | Change | Worklog |
 | ---- | ------ | ------- |
+| 2026-06-21 | L7-010: role taxonomy refresh (12-role, from ECOSYSTEM_MAP.md §1) | `worklogs/L7-010-taxonomy-rerender-2026-06-21.json` |
 | 2026-06-17 | Initial binding (L7-001 sweep) | `worklogs/L7-001-intent-boundary-curation-2026-06-17.json` |
