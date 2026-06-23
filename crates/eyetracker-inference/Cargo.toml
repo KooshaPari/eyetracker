@@ -8,7 +8,7 @@ description = "ML inference pipeline for eye tracking"
 eyetracker-domain = { path = "../eyetracker-domain" }
 eyetracker-camera = { path = "../eyetracker-camera" }
 anyhow = "1"
-bincode = "1"
+bincode = "3"
 dirs = "5"
 image = "0.25"
 nalgebra = "0.33"
@@ -21,7 +21,7 @@ thiserror = { workspace = true }
 core-graphics = "0.23"
 
 [dev-dependencies]
-bincode = "1"
+bincode = "3"
 serde_json = "1"
 tempfile = "3"
 
