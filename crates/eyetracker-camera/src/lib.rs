@@ -3,7 +3,7 @@
 //! Provides camera enumeration, frame capture, and configuration
 //! via nokhwa (AVFoundation on macOS).
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
@@ -171,7 +171,7 @@ pub struct Camera {
     running: bool,
     frame_count: u64,
     start_time: Option<Instant>,
-    backend: Option<Arc<dyn backend::Backend>>,
+    backend: Option<Arc<Mutex<dyn backend::Backend>>>,
 }
 
 impl Camera {
@@ -647,7 +647,18 @@ impl Camera {
     /// Use this to plug in non-webcam backends (Tobii, Pupil, ARKit, synthetic).
     /// The default webcam path is `Camera::new(config)` (unchanged).
     pub fn with_backend(backend: Arc<dyn Backend>, config: CameraConfig) -> Result<Self> {
-        backend.open(0, &config)?;
+        // Lock once to call open; the Mutex<...> wrapper enforces interior
+        // mutability so the trait's &mut self methods remain callable through
+        // an Arc (which is otherwise only Deref, not DerefMut).
+        {
+            let mut guard = backend
+                .as_ref()
+                .lock()
+                .map_err(|e| anyhow!("backend mutex poisoned: {e}"))?;
+            guard
+                .open(0, &config)
+                .map_err(|e| anyhow!("backend.open failed: {e}"))?;
+        }
         tracing::info!(
             "Camera created with backend: {} res={}x{} fps={}",
             backend.name(),
@@ -661,13 +672,17 @@ impl Camera {
             running: false,
             frame_count: 0,
             start_time: None,
-            backend: Some(backend),
+            backend: Some(Arc::new(Mutex::new(backend.as_ref().lock().map_err(
+                |e| anyhow!("backend mutex poisoned: {e}"),
+            )?))),
         })
     }
 
     /// Identify the active backend kind (None when using legacy path).
     pub fn backend_kind(&self) -> Option<BackendKind> {
-        self.backend.as_ref().map(|b| b.kind())
+        self.backend
+            .as_ref()
+            .and_then(|arc| arc.lock().ok().map(|g| g.kind()))
     }
 } // end of pub mod backend
 
