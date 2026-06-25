@@ -171,7 +171,7 @@ pub struct Camera {
     running: bool,
     frame_count: u64,
     start_time: Option<Instant>,
-    backend: Option<Arc<Mutex<dyn backend::Backend>>>,
+    backend: Option<Arc<Mutex<Box<dyn backend::Backend>>>>,
 }
 
 impl Camera {
@@ -212,9 +212,26 @@ impl Camera {
         Ok(cam)
     }
 
-    /// Start the camera stream
+    /// Start the camera stream.
+    ///
+    /// Routes through the explicit backend when present (Tobii / Pupil / ARKit
+    /// / synthetic / ...); falls through to the legacy nokhwa `inner` path
+    /// otherwise.
     pub fn start(&mut self) -> Result<()> {
         if self.running {
+            return Ok(());
+        }
+        if let Some(backend_arc) = self.backend.as_ref() {
+            let mut backend = backend_arc
+                .lock()
+                .map_err(|e| anyhow!("backend mutex poisoned: {e}"))?;
+            backend
+                .start()
+                .map_err(|e| anyhow!("Failed to start backend: {e}"))?;
+            self.running = true;
+            self.start_time = Some(Instant::now());
+            self.frame_count = 0;
+            tracing::info!("Backend stream started: {}", backend.name());
             return Ok(());
         }
         let camera = self.inner.as_mut().ok_or_else(|| anyhow!("No camera"))?;
@@ -228,9 +245,17 @@ impl Camera {
         Ok(())
     }
 
-    /// Stop the camera stream
+    /// Stop the camera stream. Routes through the explicit backend when present.
     pub fn stop(&mut self) -> Result<()> {
         if !self.running {
+            return Ok(());
+        }
+        if let Some(backend_arc) = self.backend.as_ref() {
+            if let Ok(mut backend) = backend_arc.lock() {
+                let _ = backend.stop();
+            }
+            self.running = false;
+            tracing::info!("Backend stream stopped");
             return Ok(());
         }
         if let Some(ref mut camera) = self.inner {
@@ -241,12 +266,32 @@ impl Camera {
         Ok(())
     }
 
-    /// Capture a single frame (blocking). Returns RGB8 pixel data.
+    /// Capture a single frame (blocking). Returns RGB8 for the legacy webcam
+    /// path or the backend-native format (e.g. `Gray8` heatmap) for explicit
+    /// backends.
     pub fn capture_frame(&mut self) -> Result<Frame> {
-        let camera = self.inner.as_mut().ok_or_else(|| CameraError::NotRunning)?;
         if !self.running {
             return Err(CameraError::NotRunning.into());
         }
+        if let Some(backend_arc) = self.backend.as_ref() {
+            let mut backend = backend_arc
+                .lock()
+                .map_err(|e| anyhow!("backend mutex poisoned: {e}"))?;
+            let frame = backend
+                .capture_frame()
+                .map_err(|e| anyhow!("Backend capture failed: {e}"))?;
+            self.frame_count += 1;
+            tracing::debug!(
+                "Backend frame captured: {}x{} fmt={:?} bytes={}",
+                frame.width,
+                frame.height,
+                frame.format,
+                frame.data.len()
+            );
+            return Ok(frame);
+        }
+        use nokhwa::pixel_format::RgbFormat;
+        let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
 
         let buffer = camera
             .frame()
@@ -374,11 +419,10 @@ impl PixelFormat {
 //
 // New backends implement `Backend` and are constructed via `Camera::with_backend`:
 //
-//     use std::sync::Arc;
 //     use eyetracker_camera::{Camera, CameraConfig};
 //     use eyetracker_camera::backend::{Backend, WebcamBackend, SyntheticBackend};
 //
-//     let backend = Arc::new(WebcamBackend::new());
+//     let backend: Box<dyn Backend> = Box::new(WebcamBackend::new());
 //     let camera = Camera::with_backend(backend, CameraConfig::eye_tracking())?;
 //
 // Future EYE-SOTA units will add:
@@ -391,7 +435,7 @@ pub mod backend {
     //! Pluggable capture backends. See `Backend` trait docs.
 
     use super::{CameraConfig, CameraInfo, CameraError, Frame};
-    use std::sync::Arc;
+    use std::sync::Mutex;
 
     /// Identifier for a capture backend kind.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -421,10 +465,13 @@ pub mod backend {
 
     /// Pluggable capture backend. Implementations produce `Frame`s on demand.
     ///
-    /// The default implementation is `WebcamBackend` (nokhwa). All
-    /// implementations must be `Send + Sync` so `Camera` can wrap them
-    /// in `Arc<dyn Backend>`.
-    pub trait Backend: Send + Sync {
+    /// The default implementation is `WebcamBackend` (nokhwa). Backends are
+    /// stored behind a `Mutex` in `Camera::with_backend` and accessed
+    /// serially by the owning thread, so the trait imposes **no** `Send` or
+    /// `Sync` bounds — backends may contain thread-affine state such as
+    /// `nokhwa::Camera` (which owns a `!Send + !Sync`
+    /// `Box<dyn CaptureBackendTrait>`).
+    pub trait Backend {
         /// Identify the backend kind.
         fn kind(&self) -> BackendKind;
 
@@ -452,8 +499,13 @@ pub mod backend {
 
     /// Default backend: nokhwa / AVFoundation webcam. Always available where
     /// nokhwa is built.
+    ///
+    /// `nokhwa::Camera` internally owns a `Box<dyn CaptureBackendTrait>` which
+    /// is `!Send + !Sync`. The `Backend` trait imposes no `Send`/`Sync` bound,
+    /// so we just keep the camera behind a `Mutex` for serial access from the
+    /// owning thread.
     pub struct WebcamBackend {
-        inner: Option<nokhwa::Camera>,
+        inner: Option<Mutex<nokhwa::Camera>>,
         config: Option<CameraConfig>,
         running: bool,
         frame_count: u64,
@@ -482,7 +534,7 @@ pub mod backend {
 
         fn list_devices(&self) -> Result<Vec<CameraInfo>, CameraError> {
             let mut cameras = Vec::new();
-            match nokhwa::utils::query(nokhwa::utils::ApiBackend::Auto) {
+            match nokhwa::query(nokhwa::utils::ApiBackend::Auto) {
                 Ok(list) => {
                     for (i, info) in list.iter().enumerate() {
                         cameras.push(CameraInfo {
@@ -508,7 +560,7 @@ pub mod backend {
             let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(camera_format));
             let camera = nokhwa::Camera::new(cam_index, requested)
                 .map_err(|e| CameraError::InitFailed(e.to_string()))?;
-            self.inner = Some(camera);
+            self.inner = Some(Mutex::new(camera));
             self.config = Some(config.clone());
             self.frame_count = 0;
             Ok(())
@@ -516,7 +568,8 @@ pub mod backend {
 
         fn start(&mut self) -> Result<(), CameraError> {
             if self.running { return Ok(()); }
-            let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
+            let camera_mutex = self.inner.as_ref().ok_or(CameraError::NotRunning)?;
+            let mut camera = camera_mutex.lock().map_err(|e| CameraError::CaptureFailed(format!("nokhwa mutex poisoned: {e}")))?;
             camera.open_stream().map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
             self.running = true;
             Ok(())
@@ -524,8 +577,9 @@ pub mod backend {
 
         fn capture_frame(&mut self) -> Result<Frame, CameraError> {
             use nokhwa::pixel_format::RgbFormat;
-            let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
+            let camera_mutex = self.inner.as_ref().ok_or(CameraError::NotRunning)?;
             if !self.running { return Err(CameraError::NotRunning); }
+            let mut camera = camera_mutex.lock().map_err(|e| CameraError::CaptureFailed(format!("nokhwa mutex poisoned: {e}")))?;
             let buffer = camera.frame().map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
             let decoded = buffer.decode_image::<RgbFormat>()
                 .map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
@@ -543,8 +597,10 @@ pub mod backend {
 
         fn stop(&mut self) -> Result<(), CameraError> {
             if !self.running { return Ok(()); }
-            if let Some(ref mut camera) = self.inner {
-                let _ = camera.stop_stream();
+            if let Some(camera_mutex) = self.inner.as_ref() {
+                if let Ok(mut camera) = camera_mutex.lock() {
+                    let _ = camera.stop_stream();
+                }
             }
             self.running = false;
             Ok(())
@@ -646,13 +702,14 @@ impl Camera {
     ///
     /// Use this to plug in non-webcam backends (Tobii, Pupil, ARKit, synthetic).
     /// The default webcam path is `Camera::new(config)` (unchanged).
-    pub fn with_backend(backend: Arc<dyn Backend>, config: CameraConfig) -> Result<Self> {
-        // Lock once to call open; the Mutex<...> wrapper enforces interior
-        // mutability so the trait's &mut self methods remain callable through
-        // an Arc (which is otherwise only Deref, not DerefMut).
+    pub fn with_backend(backend: Box<dyn Backend>, config: CameraConfig) -> Result<Self> {
+        // `Backend::open` takes `&mut self`. We own the `Box<dyn Backend>` and
+        // can mutate through `Box`'s `DerefMut`. After opening, move the
+        // backend into a shared `Arc<Mutex<Box<dyn Backend>>>` so it can be
+        // locked-and-mutated from `start`/`stop`/`capture_frame`.
+        let backend_mutex = Arc::new(Mutex::new(backend));
         {
-            let mut guard = backend
-                .as_ref()
+            let mut guard = backend_mutex
                 .lock()
                 .map_err(|e| anyhow!("backend mutex poisoned: {e}"))?;
             guard
@@ -661,7 +718,13 @@ impl Camera {
         }
         tracing::info!(
             "Camera created with backend: {} res={}x{} fps={}",
-            backend.name(),
+            // Read the backend name while holding the lock — `name(&self)`
+            // only needs a shared borrow which the exclusive lock also
+            // satisfies.
+            backend_mutex
+                .lock()
+                .map_err(|e| anyhow!("backend mutex poisoned: {e}"))?
+                .name(),
             config.width,
             config.height,
             config.target_fps,
@@ -672,9 +735,7 @@ impl Camera {
             running: false,
             frame_count: 0,
             start_time: None,
-            backend: Some(Arc::new(Mutex::new(backend.as_ref().lock().map_err(
-                |e| anyhow!("backend mutex poisoned: {e}"),
-            )?))),
+            backend: Some(backend_mutex),
         })
     }
 
@@ -684,7 +745,7 @@ impl Camera {
             .as_ref()
             .and_then(|arc| arc.lock().ok().map(|g| g.kind()))
     }
-} // end of pub mod backend
+}
 
 // Tobii eye-tracker backend (EYE-SOTA-002). Gated behind the `tobii` feature
 // at the GazeSource-FFI level; the Backend impl + synthetic source are always
@@ -692,4 +753,13 @@ impl Camera {
 // between webcam and Tobii via Camera::with_backend without conditional
 // compilation in their own code.
 pub mod backend_tobii;
+
+// ARKit / Vision eye-tracker backend (EYE-SOTA-004). iOS / iPadOS / visionOS
+// front-facing TrueDepth camera. Same GazeSource abstraction as the Tobii
+// module; no extra crate deps because the FFI surface is documented as a
+// contract only at this stage (real objc2 / swift-rs bindings land in the
+// `arkit` feature behind a feature flag). The synthetic source + Backend
+// impl are always available so eyetracker-inference can target ARKit
+// hardware without conditional compilation in its own code.
+pub mod backend_arkit;
 

@@ -18,6 +18,15 @@ tokio = { workspace = true }
 # + SyntheticGazeSource compile and test in the default build so the
 # trait surface stays stable without the native SDK.
 tobii = []
+# Pupil Labs ZMQ notification protocol integration. Off by default; the
+# Backend impl + SyntheticPupilSource compile and test in the default
+# build.
+pupil = []
+# ARKit / Vision framework integration (iOS 17+ ARKit 6, macOS 14+
+# Vision framework with VNDetectFaceLandmarksRequest2). Off by default;
+# the Backend impl + SyntheticARKitSource compile and test in the default
+# build.
+arkit = []
 
 [lib]
 name = "eyetracker_camera"
