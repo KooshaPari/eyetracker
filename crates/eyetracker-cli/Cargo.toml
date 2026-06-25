@@ -9,7 +9,7 @@ eyetracker-camera = { path = "../eyetracker-camera" }
 eyetracker-inference = { path = "../eyetracker-inference" }
 eyetracker-core = { path = "../eyetracker-core" }
 clap = { version = "4", features = ["derive"] }
-ratatui = "0.26"
+ratatui = "0.30"
 crossterm = "0.27"
 anyhow = "1"
 tokio = { workspace = true }
