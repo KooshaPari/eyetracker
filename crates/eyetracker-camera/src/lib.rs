@@ -327,6 +327,13 @@ impl Drop for Camera {
     }
 }
 
+// V4L2 (Video4Linux2) backend for Linux — cross-platform webcam capture
+// on Linux desktops, embedded devices (Raspberry Pi, Jetson), and UVC-class
+// industrial cameras. Feature-gated so the default build stays Windows/macOS
+// focused via nokhwa. See EYE-SOTA-006 in _EYE_SOTA_PLAN.md.
+#[cfg(feature = "v4l2")]
+pub mod backend_v4l2;
+
 #[cfg(test)]
 mod tests {
     use super::*;
