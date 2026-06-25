@@ -669,4 +669,12 @@ impl Camera {
     pub fn backend_kind(&self) -> Option<BackendKind> {
         self.backend.as_ref().map(|b| b.kind())
     }
-}
+} // end of pub mod backend
+
+// Tobii eye-tracker backend (EYE-SOTA-002). Gated behind the `tobii` feature
+// at the GazeSource-FFI level; the Backend impl + synthetic source are always
+// available so downstream callers (e.g. eyetracker-inference) can switch
+// between webcam and Tobii via Camera::with_backend without conditional
+// compilation in their own code.
+pub mod backend_tobii;
+
