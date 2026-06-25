@@ -19,6 +19,11 @@ tokio = { workspace = true }
 # trait surface stays stable without the native SDK.
 tobii = []
 
+# Pupil Labs ZMQ stream integration (over the realtime-api notification
+# protocol). Off by default; the Backend impl + SyntheticPupilSource
+# compile and test in the default build.
+pupil = []
+
 [lib]
 name = "eyetracker_camera"
 path = "src/lib.rs"

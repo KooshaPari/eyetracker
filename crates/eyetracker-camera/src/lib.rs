@@ -693,3 +693,8 @@ impl Camera {
 // compilation in their own code.
 pub mod backend_tobii;
 
+// Pupil Labs eye-tracker backend (EYE-SOTA-003). Same pattern as Tobii:
+// the Backend impl + SyntheticPupilSource compile in the default build;
+// the real ZMQ stream is gated behind the `pupil` feature.
+pub mod backend_pupil;
+
