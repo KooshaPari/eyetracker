@@ -19,8 +19,7 @@
 //!
 //! DAG unit: EYE-SOTA-003.
 
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::backend::{Backend, BackendKind, CameraInfo, PixelFormat};
@@ -317,7 +316,12 @@ impl Backend for PupilBackend {
         };
         match source {
             Some(src) => {
-                *guard = Some(PupilState::new(src, config.width, config.height, self.params));
+                *guard = Some(PupilState::new(
+                    src,
+                    config.width,
+                    config.height,
+                    self.params,
+                ));
             }
             None => {
                 // No source resolvable; the most likely case is that the
@@ -344,9 +348,7 @@ impl Backend for PupilBackend {
         let mut guard = self.state.lock().map_err(|e| {
             CameraError::InitFailed(format!("PupilBackend state mutex poisoned: {e}"))
         })?;
-        let state = guard
-            .as_mut()
-            .ok_or(CameraError::NotRunning)?;
+        let state = guard.as_mut().ok_or(CameraError::NotRunning)?;
         let mut frame = state.next_frame();
         // Stamp frame_number onto the frame header (we don't track it
         // across calls, so use Instant nanos / 1_000_000 modulo to keep
@@ -400,7 +402,10 @@ mod tests {
             let s = src.next().unwrap();
             assert!((0.0..=1.0).contains(&s.x), "x out of bounds: {}", s.x);
             assert!((0.0..=1.0).contains(&s.y), "y out of bounds: {}", s.y);
-            assert!((0.0..=1.0).contains(&s.confidence), "confidence out of bounds");
+            assert!(
+                (0.0..=1.0).contains(&s.confidence),
+                "confidence out of bounds"
+            );
         }
     }
 
@@ -423,11 +428,17 @@ mod tests {
         assert_eq!(frame.width, cfg.width);
         assert_eq!(frame.height, cfg.height);
         assert_eq!(frame.format, PixelFormat::Gray8);
-        assert_eq!(frame.data.len(), (cfg.width as usize) * (cfg.height as usize));
+        assert_eq!(
+            frame.data.len(),
+            (cfg.width as usize) * (cfg.height as usize)
+        );
         // Heatmap accumulator should have some non-zero pixels after
         // the first frame (the figure-eight deposits ~200u8 with falloff).
         let nonzero = frame.data.iter().filter(|v| **v > 0).count();
-        assert!(nonzero > 0, "expected at least one non-zero pixel in heatmap");
+        assert!(
+            nonzero > 0,
+            "expected at least one non-zero pixel in heatmap"
+        );
         be.stop().unwrap();
     }
 

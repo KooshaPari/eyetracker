@@ -35,11 +35,12 @@
 //! verified without real Tobii hardware. Integration tests with the real
 //! SDK live in `tests/tobii_integration.rs` and require the `tobii` feature.
 
-use crate::backend::{Backend, BackendKind};
-use crate::{CameraConfig, CameraError, CameraInfo, Frame, PixelFormat};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use crate::backend::{Backend, BackendKind};
+use crate::{CameraConfig, CameraError, CameraInfo, Frame, PixelFormat};
 
 /// Gaze sample from the Tobii Stream Engine (in logical screen coordinates).
 #[derive(Debug, Clone, Copy, PartialEq)]

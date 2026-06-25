@@ -1,0 +1,266 @@
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_pupil.rs:19:
+ //!
+ //! DAG unit: EYE-SOTA-003.
+ 
+[31m-use std::sync::Arc;
+(B[m[31m-use std::sync::Mutex;
+(B[m[32m+use std::sync::{Arc, Mutex};
+(B[m use std::time::{Duration, Instant};
+ 
+ use super::backend::{Backend, BackendKind, CameraInfo, PixelFormat};
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_pupil.rs:317:
+         };
+         match source {
+             Some(src) => {
+[31m-                *guard = Some(PupilState::new(src, config.width, config.height, self.params));
+(B[m[32m+                *guard = Some(PupilState::new(
+(B[m[32m+                    src,
+(B[m[32m+                    config.width,
+(B[m[32m+                    config.height,
+(B[m[32m+                    self.params,
+(B[m[32m+                ));
+(B[m             }
+             None => {
+                 // No source resolvable; the most likely case is that the
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_pupil.rs:344:
+         let mut guard = self.state.lock().map_err(|e| {
+             CameraError::InitFailed(format!("PupilBackend state mutex poisoned: {e}"))
+         })?;
+[31m-        let state = guard
+(B[m[31m-            .as_mut()
+(B[m[31m-            .ok_or(CameraError::NotRunning)?;
+(B[m[32m+        let state = guard.as_mut().ok_or(CameraError::NotRunning)?;
+(B[m         let mut frame = state.next_frame();
+         // Stamp frame_number onto the frame header (we don't track it
+         // across calls, so use Instant nanos / 1_000_000 modulo to keep
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_pupil.rs:400:
+             let s = src.next().unwrap();
+             assert!((0.0..=1.0).contains(&s.x), "x out of bounds: {}", s.x);
+             assert!((0.0..=1.0).contains(&s.y), "y out of bounds: {}", s.y);
+[31m-            assert!((0.0..=1.0).contains(&s.confidence), "confidence out of bounds");
+(B[m[32m+            assert!(
+(B[m[32m+                (0.0..=1.0).contains(&s.confidence),
+(B[m[32m+                "confidence out of bounds"
+(B[m[32m+            );
+(B[m         }
+     }
+ 
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_pupil.rs:423:
+         assert_eq!(frame.width, cfg.width);
+         assert_eq!(frame.height, cfg.height);
+         assert_eq!(frame.format, PixelFormat::Gray8);
+[31m-        assert_eq!(frame.data.len(), (cfg.width as usize) * (cfg.height as usize));
+(B[m[32m+        assert_eq!(
+(B[m[32m+            frame.data.len(),
+(B[m[32m+            (cfg.width as usize) * (cfg.height as usize)
+(B[m[32m+        );
+(B[m         // Heatmap accumulator should have some non-zero pixels after
+         // the first frame (the figure-eight deposits ~200u8 with falloff).
+         let nonzero = frame.data.iter().filter(|v| **v > 0).count();
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_pupil.rs:430:
+[31m-        assert!(nonzero > 0, "expected at least one non-zero pixel in heatmap");
+(B[m[32m+        assert!(
+(B[m[32m+            nonzero > 0,
+(B[m[32m+            "expected at least one non-zero pixel in heatmap"
+(B[m[32m+        );
+(B[m         be.stop().unwrap();
+     }
+ 
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_pupil.rs:442:
+         }
+     }
+ }
+[32m+
+(B[mDiff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_tobii.rs:35:
+ //! verified without real Tobii hardware. Integration tests with the real
+ //! SDK live in `tests/tobii_integration.rs` and require the `tobii` feature.
+ 
+[31m-use crate::backend::{Backend, BackendKind};
+(B[m[31m-use crate::{CameraConfig, CameraError, CameraInfo, Frame, PixelFormat};
+(B[m use std::sync::atomic::{AtomicU64, Ordering};
+ use std::sync::{Arc, Mutex, MutexGuard};
+ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/backend_tobii.rs:43:
+[32m+
+(B[m[32m+use crate::backend::{Backend, BackendKind};
+(B[m[32m+use crate::{CameraConfig, CameraError, CameraInfo, Frame, PixelFormat};
+(B[m 
+ /// Gaze sample from the Tobii Stream Engine (in logical screen coordinates).
+ #[derive(Debug, Clone, Copy, PartialEq)]
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:390:
+ pub mod backend {
+     //! Pluggable capture backends. See `Backend` trait docs.
+ 
+[31m-    use super::{CameraConfig, CameraInfo, CameraError, Frame};
+(B[m     use std::sync::Arc;
+ 
+[32m+    use super::{CameraConfig, CameraError, CameraInfo, Frame};
+(B[m[32m+
+(B[m     /// Identifier for a capture backend kind.
+     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+     pub enum BackendKind {
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:477:
+     }
+ 
+     impl Backend for WebcamBackend {
+[31m-        fn kind(&self) -> BackendKind { BackendKind::Webcam }
+(B[m[31m-        fn name(&self) -> &str { "WebcamBackend (nokhwa)" }
+(B[m[32m+        fn kind(&self) -> BackendKind {
+(B[m[32m+            BackendKind::Webcam
+(B[m[32m+        }
+(B[m[32m+        fn name(&self) -> &str {
+(B[m[32m+            "WebcamBackend (nokhwa)"
+(B[m[32m+        }
+(B[m 
+         fn list_devices(&self) -> Result<Vec<CameraInfo>, CameraError> {
+             let mut cameras = Vec::new();
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:504:
+             use nokhwa::utils::*;
+             let cam_index = CameraIndex::Index(index as u32);
+             let resolution = Resolution::new(config.width, config.height);
+[31m-            let camera_format = CameraFormat::new(resolution, FrameFormat::RAWRGB, config.target_fps);
+(B[m[31m-            let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(camera_format));
+(B[m[32m+            let camera_format =
+(B[m[32m+                CameraFormat::new(resolution, FrameFormat::RAWRGB, config.target_fps);
+(B[m[32m+            let requested =
+(B[m[32m+                RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(camera_format));
+(B[m             let camera = nokhwa::Camera::new(cam_index, requested)
+                 .map_err(|e| CameraError::InitFailed(e.to_string()))?;
+             self.inner = Some(camera);
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:515:
+         }
+ 
+         fn start(&mut self) -> Result<(), CameraError> {
+[31m-            if self.running { return Ok(()); }
+(B[m[32m+            if self.running {
+(B[m[32m+                return Ok(());
+(B[m[32m+            }
+(B[m             let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
+[31m-            camera.open_stream().map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
+(B[m[32m+            camera
+(B[m[32m+                .open_stream()
+(B[m[32m+                .map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
+(B[m             self.running = true;
+             Ok(())
+         }
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:525:
+         fn capture_frame(&mut self) -> Result<Frame, CameraError> {
+             use nokhwa::pixel_format::RgbFormat;
+             let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
+[31m-            if !self.running { return Err(CameraError::NotRunning); }
+(B[m[31m-            let buffer = camera.frame().map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
+(B[m[31m-            let decoded = buffer.decode_image::<RgbFormat>()
+(B[m[32m+            if !self.running {
+(B[m[32m+                return Err(CameraError::NotRunning);
+(B[m[32m+            }
+(B[m[32m+            let buffer = camera
+(B[m[32m+                .frame()
+(B[m                 .map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
+[32m+            let decoded = buffer
+(B[m[32m+                .decode_image::<RgbFormat>()
+(B[m[32m+                .map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
+(B[m             let config = self.config.as_ref().ok_or(CameraError::NotRunning)?;
+             self.frame_count += 1;
+             Ok(Frame {
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:542:
+         }
+ 
+         fn stop(&mut self) -> Result<(), CameraError> {
+[31m-            if !self.running { return Ok(()); }
+(B[m[32m+            if !self.running {
+(B[m[32m+                return Ok(());
+(B[m[32m+            }
+(B[m             if let Some(ref mut camera) = self.inner {
+                 let _ = camera.stop_stream();
+             }
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:550:
+             Ok(())
+         }
+ 
+[31m-        fn is_running(&self) -> bool { self.running }
+(B[m[32m+        fn is_running(&self) -> bool {
+(B[m[32m+            self.running
+(B[m[32m+        }
+(B[m     }
+ 
+     /// Synthetic backend: produces deterministic frames from an embedded
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:566:
+ 
+     impl SyntheticBackend {
+         pub fn new() -> Self {
+[31m-            Self { config: None, running: false, frame_count: 0, width: 0, height: 0 }
+(B[m[32m+            Self {
+(B[m[32m+                config: None,
+(B[m[32m+                running: false,
+(B[m[32m+                frame_count: 0,
+(B[m[32m+                width: 0,
+(B[m[32m+                height: 0,
+(B[m[32m+            }
+(B[m         }
+     }
+ 
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:573:
+     impl Default for SyntheticBackend {
+[31m-        fn default() -> Self { Self::new() }
+(B[m[32m+        fn default() -> Self {
+(B[m[32m+            Self::new()
+(B[m[32m+        }
+(B[m     }
+ 
+     impl Backend for SyntheticBackend {
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:578:
+[31m-        fn kind(&self) -> BackendKind { BackendKind::Synthetic }
+(B[m[31m-        fn name(&self) -> &str { "SyntheticBackend" }
+(B[m[32m+        fn kind(&self) -> BackendKind {
+(B[m[32m+            BackendKind::Synthetic
+(B[m[32m+        }
+(B[m[32m+        fn name(&self) -> &str {
+(B[m[32m+            "SyntheticBackend"
+(B[m[32m+        }
+(B[m 
+         fn list_devices(&self) -> Result<Vec<CameraInfo>, CameraError> {
+             Ok(vec![CameraInfo {
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:600:
+         }
+ 
+         fn capture_frame(&mut self) -> Result<Frame, CameraError> {
+[31m-            if !self.running { return Err(CameraError::NotRunning); }
+(B[m[32m+            if !self.running {
+(B[m[32m+                return Err(CameraError::NotRunning);
+(B[m[32m+            }
+(B[m             self.frame_count += 1;
+             let w = self.width as usize;
+             let h = self.height as usize;
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:635:
+             Ok(())
+         }
+ 
+[31m-        fn is_running(&self) -> bool { self.running }
+(B[m[32m+        fn is_running(&self) -> bool {
+(B[m[32m+            self.running
+(B[m[32m+        }
+(B[m     }
+ }
+ 
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:672:
+             running: false,
+             frame_count: 0,
+             start_time: None,
+[31m-            backend: Some(Arc::new(Mutex::new(backend.as_ref().lock().map_err(
+(B[m[31m-                |e| anyhow!("backend mutex poisoned: {e}"),
+(B[m[31m-            )?))),
+(B[m[32m+            backend: Some(Arc::new(Mutex::new(
+(B[m[32m+                backend
+(B[m[32m+                    .as_ref()
+(B[m[32m+                    .lock()
+(B[m[32m+                    .map_err(|e| anyhow!("backend mutex poisoned: {e}"))?,
+(B[m[32m+            ))),
+(B[m         })
+     }
+ 
+Diff in /mnt/c/Users/koosh/Dev/eyetracker/crates/eyetracker-camera/src/lib.rs:697:
+ // the Backend impl + SyntheticPupilSource compile in the default build;
+ // the real ZMQ stream is gated behind the `pupil` feature.
+ pub mod backend_pupil;
+[31m-
+(B[m 

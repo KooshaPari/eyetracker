@@ -390,8 +390,9 @@ impl PixelFormat {
 pub mod backend {
     //! Pluggable capture backends. See `Backend` trait docs.
 
-    use super::{CameraConfig, CameraInfo, CameraError, Frame};
     use std::sync::Arc;
+
+    use super::{CameraConfig, CameraError, CameraInfo, Frame};
 
     /// Identifier for a capture backend kind.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -477,8 +478,12 @@ pub mod backend {
     }
 
     impl Backend for WebcamBackend {
-        fn kind(&self) -> BackendKind { BackendKind::Webcam }
-        fn name(&self) -> &str { "WebcamBackend (nokhwa)" }
+        fn kind(&self) -> BackendKind {
+            BackendKind::Webcam
+        }
+        fn name(&self) -> &str {
+            "WebcamBackend (nokhwa)"
+        }
 
         fn list_devices(&self) -> Result<Vec<CameraInfo>, CameraError> {
             let mut cameras = Vec::new();
@@ -504,8 +509,10 @@ pub mod backend {
             use nokhwa::utils::*;
             let cam_index = CameraIndex::Index(index as u32);
             let resolution = Resolution::new(config.width, config.height);
-            let camera_format = CameraFormat::new(resolution, FrameFormat::RAWRGB, config.target_fps);
-            let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(camera_format));
+            let camera_format =
+                CameraFormat::new(resolution, FrameFormat::RAWRGB, config.target_fps);
+            let requested =
+                RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(camera_format));
             let camera = nokhwa::Camera::new(cam_index, requested)
                 .map_err(|e| CameraError::InitFailed(e.to_string()))?;
             self.inner = Some(camera);
@@ -515,9 +522,13 @@ pub mod backend {
         }
 
         fn start(&mut self) -> Result<(), CameraError> {
-            if self.running { return Ok(()); }
+            if self.running {
+                return Ok(());
+            }
             let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
-            camera.open_stream().map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
+            camera
+                .open_stream()
+                .map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
             self.running = true;
             Ok(())
         }
@@ -525,9 +536,14 @@ pub mod backend {
         fn capture_frame(&mut self) -> Result<Frame, CameraError> {
             use nokhwa::pixel_format::RgbFormat;
             let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
-            if !self.running { return Err(CameraError::NotRunning); }
-            let buffer = camera.frame().map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
-            let decoded = buffer.decode_image::<RgbFormat>()
+            if !self.running {
+                return Err(CameraError::NotRunning);
+            }
+            let buffer = camera
+                .frame()
+                .map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
+            let decoded = buffer
+                .decode_image::<RgbFormat>()
                 .map_err(|e| CameraError::CaptureFailed(e.to_string()))?;
             let config = self.config.as_ref().ok_or(CameraError::NotRunning)?;
             self.frame_count += 1;
@@ -542,7 +558,9 @@ pub mod backend {
         }
 
         fn stop(&mut self) -> Result<(), CameraError> {
-            if !self.running { return Ok(()); }
+            if !self.running {
+                return Ok(());
+            }
             if let Some(ref mut camera) = self.inner {
                 let _ = camera.stop_stream();
             }
@@ -550,7 +568,9 @@ pub mod backend {
             Ok(())
         }
 
-        fn is_running(&self) -> bool { self.running }
+        fn is_running(&self) -> bool {
+            self.running
+        }
     }
 
     /// Synthetic backend: produces deterministic frames from an embedded
@@ -566,17 +586,29 @@ pub mod backend {
 
     impl SyntheticBackend {
         pub fn new() -> Self {
-            Self { config: None, running: false, frame_count: 0, width: 0, height: 0 }
+            Self {
+                config: None,
+                running: false,
+                frame_count: 0,
+                width: 0,
+                height: 0,
+            }
         }
     }
 
     impl Default for SyntheticBackend {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl Backend for SyntheticBackend {
-        fn kind(&self) -> BackendKind { BackendKind::Synthetic }
-        fn name(&self) -> &str { "SyntheticBackend" }
+        fn kind(&self) -> BackendKind {
+            BackendKind::Synthetic
+        }
+        fn name(&self) -> &str {
+            "SyntheticBackend"
+        }
 
         fn list_devices(&self) -> Result<Vec<CameraInfo>, CameraError> {
             Ok(vec![CameraInfo {
@@ -600,7 +632,9 @@ pub mod backend {
         }
 
         fn capture_frame(&mut self) -> Result<Frame, CameraError> {
-            if !self.running { return Err(CameraError::NotRunning); }
+            if !self.running {
+                return Err(CameraError::NotRunning);
+            }
             self.frame_count += 1;
             let w = self.width as usize;
             let h = self.height as usize;
@@ -635,7 +669,9 @@ pub mod backend {
             Ok(())
         }
 
-        fn is_running(&self) -> bool { self.running }
+        fn is_running(&self) -> bool {
+            self.running
+        }
     }
 }
 
@@ -672,9 +708,12 @@ impl Camera {
             running: false,
             frame_count: 0,
             start_time: None,
-            backend: Some(Arc::new(Mutex::new(backend.as_ref().lock().map_err(
-                |e| anyhow!("backend mutex poisoned: {e}"),
-            )?))),
+            backend: Some(Arc::new(Mutex::new(
+                backend
+                    .as_ref()
+                    .lock()
+                    .map_err(|e| anyhow!("backend mutex poisoned: {e}"))?,
+            ))),
         })
     }
 
@@ -697,4 +736,3 @@ pub mod backend_tobii;
 // the Backend impl + SyntheticPupilSource compile in the default build;
 // the real ZMQ stream is gated behind the `pupil` feature.
 pub mod backend_pupil;
-
