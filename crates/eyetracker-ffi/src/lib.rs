@@ -3,8 +3,7 @@
 
 pub mod modern;
 
-use eyetracker_core::CalibrationState as CoreCalibrationState;
-use eyetracker_core::Calibrator as CoreCalibrator;
+use eyetracker_core::{CalibrationState as CoreCalibrationState, Calibrator as CoreCalibrator};
 use eyetracker_domain::Point as DomainPoint;
 use serde::{Deserialize, Serialize};
 
