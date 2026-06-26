@@ -28,6 +28,8 @@ pub mod focalpoint;
 pub mod gaze_estimator;
 pub mod multi_monitor;
 pub mod onnx_detector;
+#[cfg(feature = "candle")]
+pub mod candle_detector;
 pub mod pipeline;
 pub mod privacy;
 pub mod smoothing;
