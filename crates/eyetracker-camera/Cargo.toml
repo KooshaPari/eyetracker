@@ -13,6 +13,17 @@ tracing = "0.1"
 thiserror = { workspace = true }
 tokio = { workspace = true }
 
+[features]
+# Tobii Stream Engine FFI integration. Off by default; the Backend impl
+# + SyntheticGazeSource compile and test in the default build so the
+# trait surface stays stable without the native SDK.
+tobii = []
+
+# Pupil Labs ZMQ stream integration (over the realtime-api notification
+# protocol). Off by default; the Backend impl + SyntheticPupilSource
+# compile and test in the default build.
+pupil = []
+
 [lib]
 name = "eyetracker_camera"
 path = "src/lib.rs"

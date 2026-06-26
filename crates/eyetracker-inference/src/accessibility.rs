@@ -9,8 +9,9 @@
 //!   screen scrolls up; lower 20% scrolls down. Speed is proportional to
 //!   the distance from the screen center (0% at 50% from center, max at 0/100%).
 
-use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
+
+use serde::{Deserialize, Serialize};
 
 /// Action triggered by accessibility logic
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -308,7 +309,10 @@ mod tests {
         let det = ScrollDetector::new(ScrollConfig::default());
         let (action, speed) = det.update(1.0);
         assert_eq!(action, AccessibilityAction::ScrollDown);
-        assert!(speed > 0.0, "speed should be positive at bottom, got {speed}");
+        assert!(
+            speed > 0.0,
+            "speed should be positive at bottom, got {speed}"
+        );
     }
 
     #[test]
