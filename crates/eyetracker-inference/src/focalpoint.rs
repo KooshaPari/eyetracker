@@ -8,14 +8,16 @@
 //! The connector is a thin shim that wraps the eye tracker pipeline and
 //! forwards TrackingResult events to the bus.
 
-use crate::pipeline::TrackingResult;
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+
+use crate::pipeline::TrackingResult;
 
 /// Default socket path used by FocalPoint subscribers
 pub const DEFAULT_SOCKET: &str = "/tmp/eyetracker-focalpoint.sock";
@@ -86,7 +88,10 @@ impl FocalPointConnector {
             .smoothed_gaze
             .map(|(x, y)| (x, y, true))
             .or_else(|| {
-                result.gaze.as_ref().map(|g| (g.combined.x, g.combined.y, false))
+                result
+                    .gaze
+                    .as_ref()
+                    .map(|g| (g.combined.x, g.combined.y, false))
             })
             .unwrap_or((0.0, 0.0, false));
 
@@ -133,11 +138,13 @@ fn unix_millis() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::calibration::CalibrationResult;
-    use eyetracker_camera::{Frame, PixelFormat};
     use std::os::unix::net::UnixListener;
     use std::time::Instant;
+
+    use eyetracker_camera::{Frame, PixelFormat};
+
+    use super::*;
+    use crate::calibration::CalibrationResult;
 
     fn dummy_result() -> TrackingResult {
         TrackingResult {
@@ -232,9 +239,21 @@ mod tests {
         r.smoothed_gaze = None;
         r.gaze = Some(crate::gaze_estimator::GazeResult {
             screen_point: crate::gaze_estimator::Point2D { x: 0.3, y: 0.4 },
-            combined: crate::gaze_estimator::GazeVector { x: 0.3, y: 0.4, z: 0.0 },
-            left: crate::gaze_estimator::GazeVector { x: 0.0, y: 0.0, z: 0.0 },
-            right: crate::gaze_estimator::GazeVector { x: 0.0, y: 0.0, z: 0.0 },
+            combined: crate::gaze_estimator::GazeVector {
+                x: 0.3,
+                y: 0.4,
+                z: 0.0,
+            },
+            left: crate::gaze_estimator::GazeVector {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            right: crate::gaze_estimator::GazeVector {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             confidence: 0.9,
         });
         c.publish(&r).expect("publish");

@@ -16,8 +16,8 @@ mod platform {
 
     /// Send a click + release at the absolute display coordinates.
     pub fn click_at(x: f64, y: f64, button: MouseButton) {
-        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-            .expect("CGEventSource::new");
+        let source =
+            CGEventSource::new(CGEventSourceStateID::HIDSystemState).expect("CGEventSource::new");
         let down = CGEvent::new_mouse_event(
             source.clone(),
             button.down_event(),
@@ -44,20 +44,14 @@ mod platform {
         // macOS or stripped environments.
         // The conversion: 1 line ≈ 10 wheel units (Apple convention).
         let delta = (lines * 10) as i64;
-        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-            .expect("CGEventSource::new");
+        let source =
+            CGEventSource::new(CGEventSourceStateID::HIDSystemState).expect("CGEventSource::new");
         // Build a scroll event manually via the C-style API since the Rust binding
         // for `CGEventCreateScrollWheelEvent2` is not exposed in 0.23 by default.
         unsafe {
             use core_graphics::event::{CGEvent, CGEventTapLocation, ScrollEventUnit};
-            let event = CGEvent::new_scroll_event(
-                source,
-                ScrollEventUnit::LINE,
-                1,
-                delta as i32,
-                0,
-                0,
-            );
+            let event =
+                CGEvent::new_scroll_event(source, ScrollEventUnit::LINE, 1, delta as i32, 0, 0);
             if let Some(ev) = event {
                 ev.post(CGEventTapLocation::HID);
                 debug!("scroll posted at ({}, {}), lines={}", x, y, lines);

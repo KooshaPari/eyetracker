@@ -103,7 +103,7 @@ pub mod eye_indices {
     pub const RIGHT_EYE_OUTER: usize = 263;
 
     // Iris landmarks (MediaPipe 468-point model with iris refinement)
-    pub const LEFT_IRIS: usize = 468;  // first iris landmark
+    pub const LEFT_IRIS: usize = 468; // first iris landmark
     #[allow(dead_code)]
     pub const RIGHT_IRIS: usize = 473;
 }
@@ -113,9 +113,8 @@ pub mod eye_indices {
 // Used by FR-EYE-CAL-005 multi-monitor calibration to anchor face region.
 #[allow(dead_code)]
 const FACE_OVAL_INDICES: &[usize] = &[
-    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
-    397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
-    172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152,
+    148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
 ];
 
 /// Create a placeholder face mesh (useful when no face detected)
@@ -159,8 +158,12 @@ pub fn extract_eye_regions(landmarks: &[Landmark3D]) -> Option<(EyeRegion, EyeRe
 
     // Left eye
     let left_center = Landmark2D {
-        x: landmarks[eye_indices::LEFT_EYE_INNER].x + (landmarks[eye_indices::LEFT_EYE_OUTER].x - landmarks[eye_indices::LEFT_EYE_INNER].x) / 2.0,
-        y: landmarks[eye_indices::LEFT_EYE_INNER].y + (landmarks[eye_indices::LEFT_EYE_OUTER].y - landmarks[eye_indices::LEFT_EYE_INNER].y) / 2.0,
+        x: landmarks[eye_indices::LEFT_EYE_INNER].x
+            + (landmarks[eye_indices::LEFT_EYE_OUTER].x - landmarks[eye_indices::LEFT_EYE_INNER].x)
+                / 2.0,
+        y: landmarks[eye_indices::LEFT_EYE_INNER].y
+            + (landmarks[eye_indices::LEFT_EYE_OUTER].y - landmarks[eye_indices::LEFT_EYE_INNER].y)
+                / 2.0,
     };
     let left = EyeRegion {
         landmark_indices: eye_indices::LEFT_EYE.to_vec(),
@@ -172,8 +175,14 @@ pub fn extract_eye_regions(landmarks: &[Landmark3D]) -> Option<(EyeRegion, EyeRe
 
     // Right eye
     let right_center = Landmark2D {
-        x: landmarks[eye_indices::RIGHT_EYE_INNER].x + (landmarks[eye_indices::RIGHT_EYE_OUTER].x - landmarks[eye_indices::RIGHT_EYE_INNER].x) / 2.0,
-        y: landmarks[eye_indices::RIGHT_EYE_INNER].y + (landmarks[eye_indices::RIGHT_EYE_OUTER].y - landmarks[eye_indices::RIGHT_EYE_INNER].y) / 2.0,
+        x: landmarks[eye_indices::RIGHT_EYE_INNER].x
+            + (landmarks[eye_indices::RIGHT_EYE_OUTER].x
+                - landmarks[eye_indices::RIGHT_EYE_INNER].x)
+                / 2.0,
+        y: landmarks[eye_indices::RIGHT_EYE_INNER].y
+            + (landmarks[eye_indices::RIGHT_EYE_OUTER].y
+                - landmarks[eye_indices::RIGHT_EYE_INNER].y)
+                / 2.0,
     };
     let right = EyeRegion {
         landmark_indices: eye_indices::RIGHT_EYE.to_vec(),
@@ -228,10 +237,26 @@ mod tests {
     fn test_extract_eye_regions() {
         let mut landmarks = create_placeholder_mesh();
         // Position eyes approximately
-        landmarks[33] = Landmark3D { x: 0.3, y: 0.4, z: 0.0 };   // left outer
-        landmarks[133] = Landmark3D { x: 0.4, y: 0.4, z: 0.0 };  // left inner
-        landmarks[362] = Landmark3D { x: 0.6, y: 0.4, z: 0.0 };  // right inner
-        landmarks[263] = Landmark3D { x: 0.7, y: 0.4, z: 0.0 };  // right outer
+        landmarks[33] = Landmark3D {
+            x: 0.3,
+            y: 0.4,
+            z: 0.0,
+        }; // left outer
+        landmarks[133] = Landmark3D {
+            x: 0.4,
+            y: 0.4,
+            z: 0.0,
+        }; // left inner
+        landmarks[362] = Landmark3D {
+            x: 0.6,
+            y: 0.4,
+            z: 0.0,
+        }; // right inner
+        landmarks[263] = Landmark3D {
+            x: 0.7,
+            y: 0.4,
+            z: 0.0,
+        }; // right outer
 
         let result = extract_eye_regions(&landmarks);
         assert!(result.is_some());
@@ -243,12 +268,22 @@ mod tests {
     #[test]
     fn test_landmark_normalization() {
         let landmarks = vec![
-            Landmark3D { x: 0.5, y: 0.5, z: 0.0 },
-            Landmark3D { x: 0.6, y: 0.6, z: 0.0 },
+            Landmark3D {
+                x: 0.5,
+                y: 0.5,
+                z: 0.0,
+            },
+            Landmark3D {
+                x: 0.6,
+                y: 0.6,
+                z: 0.0,
+            },
         ];
         let face_box = FaceBox {
-            x: 100.0, y: 100.0,
-            width: 200.0, height: 200.0,
+            x: 100.0,
+            y: 100.0,
+            width: 200.0,
+            height: 200.0,
             confidence: 1.0,
         };
         let normalized = normalize_landmarks(&landmarks, &face_box, 640.0, 480.0);
