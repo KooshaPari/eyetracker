@@ -17,6 +17,18 @@ serde_json = "1"
 tracing = "0.1"
 thiserror = { workspace = true }
 
+[features]
+default = []
+candle = ["dep:candle-core", "dep:candle-nn"]
+
+[dependencies.candle-core]
+version = "0.8"
+optional = true
+
+[dependencies.candle-nn]
+version = "0.8"
+optional = true
+
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23"
 
