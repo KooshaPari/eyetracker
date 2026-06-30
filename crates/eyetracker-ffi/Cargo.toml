@@ -11,7 +11,7 @@ eyetracker-domain = { path = "../eyetracker-domain" }
 eyetracker-core = { path = "../eyetracker-core" }
 eyetracker-inference = { path = "../eyetracker-inference" }
 eyetracker-camera = { path = "../eyetracker-camera" }
-uniffi = { version = "0.31", features = ["bindgen"] }
+uniffi = { version = "0.32", features = ["bindgen"] }
 serde = { workspace = true }
 thiserror = { workspace = true }
 
@@ -26,7 +26,7 @@ path = "src/bin/uniffi-bindgen.rs"
 all-features = true
 
 [build-dependencies]
-uniffi = { version = "0.31", features = ["build"] }
+uniffi = { version = "0.32", features = ["build"] }
 
 [dev-dependencies]
-uniffi = { version = "0.31", features = ["cli", "bindgen"] }
+uniffi = { version = "0.32", features = ["cli", "bindgen"] }
