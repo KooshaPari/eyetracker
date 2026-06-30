@@ -5,6 +5,8 @@
 //! All machine-readable output goes to stdout; all human-readable labels
 //! and TUI chrome go to stderr so they don't corrupt piped output.
 
+#![allow(dead_code)]
+
 use serde::Serialize;
 
 /// Output format selected by the `--format` flag.
