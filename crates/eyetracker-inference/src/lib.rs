@@ -21,19 +21,24 @@
 
 pub mod accessibility;
 pub mod calibration;
+#[cfg(feature = "candle")]
+pub mod candle_detector;
 pub mod classification;
 pub mod drift_monitor;
+pub mod face_detector;
 pub mod face_mesh;
 pub mod focalpoint;
 pub mod gaze_estimator;
-pub mod multi_monitor;
+pub mod face_detector;
+pub mod face_mesh;
+pub mod gaze_estimator;
 pub mod onnx_detector;
 pub mod pipeline;
-pub mod privacy;
 pub mod smoothing;
 
 // Re-export core types
 pub use calibration::{load_calibration, save_calibration, CalibrationResult};
-pub use face_mesh::*;
+pub use face_detector::{DetectionError, FaceBox, FaceDetector as BoxFaceDetector, GazeVector};
+pub use face_mesh::{FaceDetector, FaceResult, Landmark3D};
 pub use gaze_estimator::*;
 pub use pipeline::*;
