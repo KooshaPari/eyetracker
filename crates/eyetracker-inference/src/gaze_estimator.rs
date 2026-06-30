@@ -171,7 +171,10 @@ impl GeometricGazeEstimator {
         let (pupil_x, pupil_y) = if let Some(p) = pupil {
             (p.x, p.y)
         } else {
-            (eye_cx + (eye_outer.x - eye_inner.x) * 0.02, eye_cy + eye_width * 0.01)
+            (
+                eye_cx + (eye_outer.x - eye_inner.x) * 0.02,
+                eye_cy + eye_width * 0.01,
+            )
         };
 
         let gaze_x = (pupil_x - eye_cx) / eye_width.max(1.0);
@@ -182,11 +185,7 @@ impl GeometricGazeEstimator {
 }
 
 impl GazeEstimatorTrait for GeometricGazeEstimator {
-    fn estimate(
-        &mut self,
-        face: &FaceResult,
-        frame: &Frame,
-    ) -> anyhow::Result<GazeResult> {
+    fn estimate(&mut self, face: &FaceResult, frame: &Frame) -> anyhow::Result<GazeResult> {
         let eye_width = face.face_box.width * 0.1;
 
         let left = self.estimate_eye_gaze(
@@ -236,8 +235,10 @@ impl GazeEstimatorTrait for GeometricGazeEstimator {
                 combined: smooth_gaze(&prev.combined, &result.combined, self.smoothing),
                 confidence: result.confidence,
                 screen_point: Point2D::new(
-                    prev.screen_point.x * self.smoothing + result.screen_point.x * (1.0 - self.smoothing),
-                    prev.screen_point.y * self.smoothing + result.screen_point.y * (1.0 - self.smoothing),
+                    prev.screen_point.x * self.smoothing
+                        + result.screen_point.x * (1.0 - self.smoothing),
+                    prev.screen_point.y * self.smoothing
+                        + result.screen_point.y * (1.0 - self.smoothing),
                 ),
             }
         } else {

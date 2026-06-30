@@ -1,0 +1,18 @@
+{
+  "work_package_id": "EYE-SOTA-002",
+  "lane": "feat",
+  "dependencies": ["EYE-CI-101"],
+  "base_branch": "main",
+  "phase": "spec",
+  "assignee": "kooshapari",
+  "agent": "forge",
+  "review_status": "draft",
+  "history": [
+    {
+      "ts": "2026-06-23T00:00:00Z",
+      "actor": "forge",
+      "action": "spec_created",
+      "note": "Initial draft; references DAG EYE-SOTA-002"
+    }
+  ]
+}

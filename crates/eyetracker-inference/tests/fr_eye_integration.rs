@@ -28,7 +28,11 @@ use eyetracker_inference::smoothing::{GazeSmoother, KalmanState2D};
 
 fn make_sample(x: f32, y: f32, gaze: Vec<(f32, f32, f32)>) -> CalibrationSample {
     CalibrationSample {
-        point: CalibrationPoint { x, y, label: "p".into() },
+        point: CalibrationPoint {
+            x,
+            y,
+            label: "p".into(),
+        },
         gaze_samples: gaze,
         timestamp: Instant::now(),
     }
@@ -80,7 +84,9 @@ fn fr_eye_cal_002_drift_tolerance_enforced() {
         .map(|pt| make_sample(pt.x, pt.y, vec![(pt.x + 0.05, pt.y + 0.05, 0.0); 30]))
         .collect();
     let bad = CalibrationResult::from_samples(bad);
-    let drift = bad.residual_drift_degrees().expect("residual_drift_degrees");
+    let drift = bad
+        .residual_drift_degrees()
+        .expect("residual_drift_degrees");
     assert!(drift > 1.5, "expected drift >1.5° (got {drift})");
     assert!(
         !bad.is_within_tolerance(),
@@ -167,11 +173,17 @@ fn fr_eye_cal_004_drift_trigger_to_dismiss_to_resume_cycle() {
     assert!(fired, "expected at least one Critical drift event");
 
     // 2) UI surface: the monitor is in 'has-event, not-dismissed' state
-    assert!(!monitor.is_dismissed(), "monitor should not yet be dismissed");
+    assert!(
+        !monitor.is_dismissed(),
+        "monitor should not yet be dismissed"
+    );
 
     // 3) User dismisses
     monitor.dismiss();
-    assert!(monitor.is_dismissed(), "dismiss() should set the dismissed flag");
+    assert!(
+        monitor.is_dismissed(),
+        "dismiss() should set the dismissed flag"
+    );
 
     // 4) Suppressed: no events for the rest of the session even with
     //    more drift accumulating on top of the existing baseline error.
@@ -182,7 +194,10 @@ fn fr_eye_cal_004_drift_trigger_to_dismiss_to_resume_cycle() {
 
     // 5) New "session" (or a re-calibration) clears the dismiss flag
     monitor.reset_dismissed();
-    assert!(!monitor.is_dismissed(), "reset_dismissed() should clear the flag");
+    assert!(
+        !monitor.is_dismissed(),
+        "reset_dismissed() should clear the flag"
+    );
 }
 
 #[test]
@@ -353,12 +368,10 @@ fn fr_eye_access_001_dwell_click_configurable() {
     // FR-EYE-ACCESS-001: A dwell-click shall fire after a configurable
     // dwell duration (200-1000ms) on a stable screen region. Cancellable
     // via saccade to a safe zone (screen edges).
-    let mut det = eyetracker_inference::accessibility::DwellClickDetector::new(
-        DwellClickConfig {
-            dwell_duration: Duration::from_millis(200), // minimum per spec
-            ..Default::default()
-        },
-    );
+    let mut det = eyetracker_inference::accessibility::DwellClickDetector::new(DwellClickConfig {
+        dwell_duration: Duration::from_millis(200), // minimum per spec
+        ..Default::default()
+    });
 
     // Start a dwell
     let a = det.update(0.5, 0.5, true, 1920.0, 1080.0);
@@ -368,12 +381,10 @@ fn fr_eye_access_001_dwell_click_configurable() {
     assert_eq!(a, AccessibilityAction::Click);
 
     // Now test safe-zone cancellation
-    let mut det2 = eyetracker_inference::accessibility::DwellClickDetector::new(
-        DwellClickConfig {
-            dwell_duration: Duration::from_millis(500),
-            ..Default::default()
-        },
-    );
+    let mut det2 = eyetracker_inference::accessibility::DwellClickDetector::new(DwellClickConfig {
+        dwell_duration: Duration::from_millis(500),
+        ..Default::default()
+    });
     det2.update(0.5, 0.5, true, 1920.0, 1080.0);
     // saccade into the top edge safe zone
     let a = det2.update(0.01, 0.5, true, 1920.0, 1080.0);
@@ -385,9 +396,8 @@ fn fr_eye_access_001_dwell_duration_clamped_to_spec_range() {
     // FR-EYE-ACCESS-001: Dwell duration must be in 200-1000ms.
     // The setter clamps out-of-range values rather than rejecting them,
     // so external callers cannot accidentally mis-configure the system.
-    let mut det = eyetracker_inference::accessibility::DwellClickDetector::new(
-        DwellClickConfig::default(),
-    );
+    let mut det =
+        eyetracker_inference::accessibility::DwellClickDetector::new(DwellClickConfig::default());
 
     // Below minimum → clamped to 200ms
     det.set_dwell_duration(Duration::from_millis(50));
@@ -474,9 +484,7 @@ fn fr_eye_access_001_dwell_click_fires_through_app_tick_path() {
     let h = 720.0;
 
     // Frame 1: gaze lands at center, fixating → DwellStarted
-    let a1 = app_tick_accessibility(
-        &mut manager, Some((0.0, 0.0)), true, w, h,
-    );
+    let a1 = app_tick_accessibility(&mut manager, Some((0.0, 0.0)), true, w, h);
     assert_eq!(a1, AccessibilityAction::DwellStarted);
 
     // Frames 2..N: hold at the same spot while fixating. The click
@@ -487,9 +495,7 @@ fn fr_eye_access_001_dwell_click_fires_through_app_tick_path() {
     let mut click_observed = false;
     let mut dwell_started_count = 0;
     for _ in 0..30 {
-        let action = app_tick_accessibility(
-            &mut manager, Some((0.0, 0.0)), true, w, h,
-        );
+        let action = app_tick_accessibility(&mut manager, Some((0.0, 0.0)), true, w, h);
         match action {
             AccessibilityAction::Click => click_observed = true,
             AccessibilityAction::DwellStarted => dwell_started_count += 1,
@@ -520,21 +526,15 @@ fn fr_eye_access_002_gaze_scroll_fires_through_app_tick_path() {
     let h = 720.0;
 
     // Top of screen: pixel-space y = -h/2, normalized → 0.0
-    let top = app_tick_accessibility(
-        &mut manager, Some((0.0, -h / 2.0)), false, w, h,
-    );
+    let top = app_tick_accessibility(&mut manager, Some((0.0, -h / 2.0)), false, w, h);
     assert_eq!(top, AccessibilityAction::ScrollUp);
 
     // Bottom of screen: pixel-space y = +h/2, normalized → 1.0
-    let bot = app_tick_accessibility(
-        &mut manager, Some((0.0, h / 2.0)), false, w, h,
-    );
+    let bot = app_tick_accessibility(&mut manager, Some((0.0, h / 2.0)), false, w, h);
     assert_eq!(bot, AccessibilityAction::ScrollDown);
 
     // Middle (y=0 pixel) → 0.5 normalized → no action
-    let mid = app_tick_accessibility(
-        &mut manager, Some((0.0, 0.0)), false, w, h,
-    );
+    let mid = app_tick_accessibility(&mut manager, Some((0.0, 0.0)), false, w, h);
     assert_eq!(mid, AccessibilityAction::None);
 }
 
@@ -549,17 +549,14 @@ fn fr_eye_access_001_dwell_cancels_on_saccade_through_app_tick_path() {
     let h = 720.0;
 
     // Start a dwell in the safe interior
-    let a1 = app_tick_accessibility(
-        &mut manager, Some((0.0, 0.0)), true, w, h,
-    );
+    let a1 = app_tick_accessibility(&mut manager, Some((0.0, 0.0)), true, w, h);
     assert_eq!(a1, AccessibilityAction::DwellStarted);
 
     // Saccade to the safe zone (top edge) — pixel y = -h/2 + 1
-    let cancel = app_tick_accessibility(
-        &mut manager, Some((0.0, -h / 2.0 + 1.0)), true, w, h,
-    );
+    let cancel = app_tick_accessibility(&mut manager, Some((0.0, -h / 2.0 + 1.0)), true, w, h);
     assert_eq!(
-        cancel, AccessibilityAction::DwellCancelled,
+        cancel,
+        AccessibilityAction::DwellCancelled,
         "safe-zone saccade must cancel pending dwell through the app tick path"
     );
 }
@@ -611,10 +608,7 @@ fn fr_eye_privacy_003_per_session_recording_consent() {
     mgr.grant_recording_consent("display-1", ConsentScope::GazeOnly);
 
     assert!(mgr.can_record("display-1"));
-    assert!(
-        !mgr.can_record("display-2"),
-        "consent must be per-display"
-    );
+    assert!(!mgr.can_record("display-2"), "consent must be per-display");
     assert!(mgr.can_export(ConsentScope::GazeOnly));
     assert!(
         !mgr.can_export(ConsentScope::GazeAndFrames),
@@ -856,9 +850,9 @@ fn fr_eye_access_002_scroll_zone_math() {
     }
     assert_eq!(zone_for(0.0), "up");
     assert_eq!(zone_for(0.19), "up");
-    assert_eq!(zone_for(0.20), "middle");  // boundary is exclusive
+    assert_eq!(zone_for(0.20), "middle"); // boundary is exclusive
     assert_eq!(zone_for(0.50), "middle");
-    assert_eq!(zone_for(0.80), "middle");  // boundary is exclusive
+    assert_eq!(zone_for(0.80), "middle"); // boundary is exclusive
     assert_eq!(zone_for(0.81), "down");
     assert_eq!(zone_for(1.0), "down");
 }

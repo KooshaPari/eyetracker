@@ -1,0 +1,33 @@
+{
+  "work_package_id": "EYE-SOTA-004",
+  "title": "ARKit / visionOS / WebXR gaze adapters",
+  "lane": "feat",
+  "phase": "spec",
+  "status": "draft",
+  "dependencies": [
+    "EYE-SOTA-002",
+    "EYE-SOTA-003"
+  ],
+  "base_branch": "main",
+  "subtasks": [
+    "WP01-scaffold-crate",
+    "WP02-arkit-objc2",
+    "WP03-visionos-realitykit",
+    "WP04-webxr-wasm",
+    "WP05-wgsl-pointer-shader",
+    "WP06-cli-web-demo",
+    "WP07-cli-ios-overlay",
+    "WP08-consent-gate",
+    "WP09-tests-mocks"
+  ],
+  "agent": "forge",
+  "assignee": "kooshapari",
+  "history": [
+    {
+      "ts": "2026-06-23T00:00:00Z",
+      "actor": "forge",
+      "action": "spec_created",
+      "note": "Initial draft; references DAG EYE-SOTA-004"
+    }
+  ]
+}
