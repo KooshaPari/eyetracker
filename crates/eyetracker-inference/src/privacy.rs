@@ -5,9 +5,10 @@
 //! - FR-EYE-PRIVACY-002: No default cloud upload; explicit opt-in only
 //! - FR-EYE-PRIVACY-003: Screen recording requires explicit per-session consent
 
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use serde::{Deserialize, Serialize};
 
 /// Privacy mode determining what data leaves the device
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,8 +160,9 @@ pub fn privacy_storage_path() -> Result<PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::time::Duration;
+
+    use super::*;
 
     #[test]
     fn test_default_is_strict_local() {

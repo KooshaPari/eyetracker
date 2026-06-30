@@ -4,10 +4,12 @@
 //! When drift exceeds a configurable threshold (>2° from baseline), a
 //! recalibration event is emitted. The user may dismiss once per session.
 
+use std::time::{Duration, Instant};
+
+use serde::{Deserialize, Serialize};
+
 use crate::multi_monitor::DisplayId;
 use crate::smoothing::GazeSmoother;
-use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
 
 /// Drift severity level
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,7 +104,13 @@ impl DriftMonitor {
     }
 
     /// Register a calibration baseline for a display
-    pub fn register_baseline(&mut self, display: DisplayId, centroid_x: f32, centroid_y: f32, baseline_drift: f32) {
+    pub fn register_baseline(
+        &mut self,
+        display: DisplayId,
+        centroid_x: f32,
+        centroid_y: f32,
+        baseline_drift: f32,
+    ) {
         self.baselines.insert(
             display.uuid.clone(),
             BaselineSignature {
@@ -181,9 +189,7 @@ impl DriftMonitor {
                 severity,
                 drift_degrees: total_drift,
                 baseline_drift_degrees: baseline.baseline_drift,
-                reason: format!(
-                    "Drift {total_drift:.2}° exceeds {severity:?} threshold"
-                ),
+                reason: format!("Drift {total_drift:.2}° exceeds {severity:?} threshold"),
             };
 
             // Promote to most severe (Critical > Warning > None)
@@ -204,8 +210,7 @@ impl DriftMonitor {
 
         // Idempotency: don't re-emit the same event within the window
         if let (Some(last), Some(new)) = (&self.last_event, &worst_event) {
-            if last.severity == new.severity
-                && (last.drift_degrees - new.drift_degrees).abs() < 0.1
+            if last.severity == new.severity && (last.drift_degrees - new.drift_degrees).abs() < 0.1
             {
                 return None;
             }

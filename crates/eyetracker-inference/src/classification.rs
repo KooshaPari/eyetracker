@@ -423,8 +423,7 @@ impl GazeClassifier {
                 self.low_velocity_start = Some(timestamp);
             }
 
-            let dwell = timestamp
-                .duration_since(self.low_velocity_start.unwrap());
+            let dwell = timestamp.duration_since(self.low_velocity_start.unwrap());
             if dwell >= FIXATION_MIN_DURATION {
                 // Sufficiently long low-velocity period → fixation.
                 self.enter_fixation(gaze_x, gaze_y, timestamp, events);
@@ -458,7 +457,14 @@ impl GazeClassifier {
                     duration,
                 });
             }
-            self.enter_saccade(self.fixation_centroid().0, self.fixation_centroid().1, gaze_x, gaze_y, timestamp, velocity);
+            self.enter_saccade(
+                self.fixation_centroid().0,
+                self.fixation_centroid().1,
+                gaze_x,
+                gaze_y,
+                timestamp,
+                velocity,
+            );
         } else {
             // Still fixating – update the running centroid.
             self.fixation_sample_count += 1;
@@ -616,7 +622,10 @@ mod tests {
                 centroid.0,
             );
         } else {
-            panic!("Expected Fixation classification, got {:?}", classifier.current_state());
+            panic!(
+                "Expected Fixation classification, got {:?}",
+                classifier.current_state()
+            );
         }
     }
 
@@ -641,7 +650,9 @@ mod tests {
         let jump_time = start + Duration::from_millis(12 * 20);
         let events = classifier.update(-0.5, 0.5, jump_time, 0.9);
 
-        let had_fixation_end = events.iter().any(|e| matches!(e, GazeEvent::FixationEnd { .. }));
+        let had_fixation_end = events
+            .iter()
+            .any(|e| matches!(e, GazeEvent::FixationEnd { .. }));
         assert!(
             had_fixation_end,
             "Rapid position change should end the current fixation",
@@ -663,8 +674,14 @@ mod tests {
                 {
                     saccade_emitted = true;
                     // The amplitude should be non-trivial.
-                    assert!(*amplitude > 0.5, "Saccade amplitude should be > 0.5, got {amplitude}");
-                    assert!(*peak_velocity > 50.0, "Peak velocity should exceed 50°/s, got {peak_velocity}");
+                    assert!(
+                        *amplitude > 0.5,
+                        "Saccade amplitude should be > 0.5, got {amplitude}"
+                    );
+                    assert!(
+                        *peak_velocity > 50.0,
+                        "Peak velocity should exceed 50°/s, got {peak_velocity}"
+                    );
                     // Start/end should straddle the jump.
                     assert!((start.0 - 1.0).abs() < 0.1 || (end.0 - 1.0).abs() < 0.1);
                 }
