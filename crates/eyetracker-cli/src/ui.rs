@@ -227,11 +227,7 @@ fn draw_dashboard(
         f.render_widget(proc_gauge, stats_chunks[1]);
 
         // Gaze vector
-        let gaze_display = d
-            .gaze_vector
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or("No gaze");
+        let gaze_display = d.gaze_vector.as_deref().unwrap_or("No gaze");
         let gaze_block = Block::default()
             .title(" Gaze ")
             .borders(Borders::ALL)

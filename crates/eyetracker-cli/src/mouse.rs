@@ -85,7 +85,6 @@ mod platform {
 #[derive(Debug, Clone, Copy)]
 pub enum MouseButton {
     Left,
-    Right,
 }
 
 impl MouseButton {
@@ -94,7 +93,6 @@ impl MouseButton {
         use core_graphics::event::CGEventType;
         match self {
             MouseButton::Left => CGEventType::LeftMouseDown,
-            MouseButton::Right => CGEventType::RightMouseDown,
         }
     }
 
@@ -103,7 +101,6 @@ impl MouseButton {
         use core_graphics::event::CGEventType;
         match self {
             MouseButton::Left => CGEventType::LeftMouseUp,
-            MouseButton::Right => CGEventType::RightMouseUp,
         }
     }
 }
