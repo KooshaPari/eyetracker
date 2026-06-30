@@ -126,15 +126,21 @@ pub fn dispatch(action: AccessibilityAction, screen_x: f64, screen_y: f64, enabl
         AccessibilityAction::Click => {
             platform::click_at(screen_x, screen_y, MouseButton::Left);
         }
-        AccessibilityAction::ScrollUp(lines) => {
+        AccessibilityAction::ScrollUp => {
+            let lines = 3;
             platform::scroll_at(screen_x, screen_y, lines);
         }
-        AccessibilityAction::ScrollDown(lines) => {
+        AccessibilityAction::ScrollDown => {
+            let lines = 3;
             platform::scroll_at(screen_x, screen_y, -lines);
         }
         AccessibilityAction::DwellStarted => {
             // Pure signal — no mouse event to post.
             debug!("dwell started at ({}, {})", screen_x, screen_y);
+        }
+        AccessibilityAction::DwellCancelled => {
+            // Pure signal — no mouse event to post.
+            debug!("dwell cancelled at ({}, {})", screen_x, screen_y);
         }
     }
 }
@@ -186,8 +192,8 @@ mod tests {
         // Should not panic on any variant when disabled.
         dispatch(AccessibilityAction::None, 100.0, 100.0, false);
         dispatch(AccessibilityAction::Click, 100.0, 100.0, false);
-        dispatch(AccessibilityAction::ScrollUp(3), 100.0, 100.0, false);
-        dispatch(AccessibilityAction::ScrollDown(3), 100.0, 100.0, false);
+        dispatch(AccessibilityAction::ScrollUp, 100.0, 100.0, false);
+        dispatch(AccessibilityAction::ScrollDown, 100.0, 100.0, false);
         dispatch(AccessibilityAction::DwellStarted, 100.0, 100.0, false);
     }
 

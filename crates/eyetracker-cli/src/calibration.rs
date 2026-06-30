@@ -115,7 +115,11 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
     // hold fixation for the required duration. This enforces the
     // spec clause "system shall dismiss and request retry if
     // insufficient samples collected".
-    use eyetracker_inference::calibration::{classify_point, PointOutcome, MAX_RETRIES_PER_POINT};
+    use eyetracker_inference::calibration::{
+        classify_point, CalibrationPoint as InferenceCalibrationPoint,
+        CalibrationSample as InferenceCalibrationSample, PointOutcome,
+    };
+    const MAX_RETRIES_PER_POINT: u32 = 3;
     // Approx 33ms per frame at the 30 FPS calibration polling rate.
     let frame_duration_ms: u64 = 33;
 
@@ -141,7 +145,16 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
             std::io::stdin().read_line(&mut input)?;
 
             let raw = collect_samples(&mut pipeline, point, Duration::from_secs(3))?;
-            let outcome = classify_point(&raw, frame_duration_ms);
+            let inference_sample = InferenceCalibrationSample {
+                point: InferenceCalibrationPoint {
+                    x: raw.point.x,
+                    y: raw.point.y,
+                    label: raw.point.label.to_string(),
+                },
+                gaze_samples: raw.gaze_samples.clone(),
+                timestamp: raw.timestamp,
+            };
+            let outcome = classify_point(&inference_sample, frame_duration_ms);
             let count = raw.gaze_samples.len();
             println!("  Collected {} samples → {:?}", count, outcome);
 

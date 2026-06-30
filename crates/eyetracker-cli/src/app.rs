@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use eyetracker_inference::{
-    accessibility::AccessibilityAction,
+    accessibility::{AccessibilityAction, AccessibilityManager},
     classification::GazeEvent,
     drift_monitor::{DriftMonitor, DriftMonitorConfig, DriftSeverity, RecalibrationEvent},
     multi_monitor::{detect_active_display, MultiMonitorCalibration},
