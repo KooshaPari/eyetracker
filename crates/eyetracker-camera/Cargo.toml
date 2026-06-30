@@ -16,3 +16,8 @@ tokio = { workspace = true }
 [lib]
 name = "eyetracker_camera"
 path = "src/lib.rs"
+
+[features]
+default = []
+v4l2 = []
+inference = []
