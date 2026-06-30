@@ -120,7 +120,8 @@ impl OnnxFaceDetector {
                 let src_idx = (sy * src_w + sx) * channels;
                 let dst_chw = y * target + x;
                 if src_idx + 2 < frame.data.len() {
-                    output[dst_chw] = (frame.data[src_idx] as f32 - self.config.mean) / self.config.std;
+                    output[dst_chw] =
+                        (frame.data[src_idx] as f32 - self.config.mean) / self.config.std;
                     output[target * target + dst_chw] =
                         (frame.data[src_idx + 1] as f32 - self.config.mean) / self.config.std;
                     output[2 * target * target + dst_chw] =
@@ -270,7 +271,14 @@ mod tests {
                 height: 100.0,
                 confidence: 0.9,
             },
-            landmarks: vec![Landmark3D { x: 0.5, y: 0.5, z: 0.0 }; 468],
+            landmarks: vec![
+                Landmark3D {
+                    x: 0.5,
+                    y: 0.5,
+                    z: 0.0
+                };
+                468
+            ],
             left_eye: EyeRegion {
                 landmark_indices: vec![],
                 center: Landmark2D { x: 0.3, y: 0.3 },

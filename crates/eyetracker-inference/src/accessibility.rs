@@ -308,7 +308,10 @@ mod tests {
         let det = ScrollDetector::new(ScrollConfig::default());
         let (action, speed) = det.update(1.0);
         assert_eq!(action, AccessibilityAction::ScrollDown);
-        assert!(speed > 0.0, "speed should be positive at bottom, got {speed}");
+        assert!(
+            speed > 0.0,
+            "speed should be positive at bottom, got {speed}"
+        );
     }
 
     #[test]
