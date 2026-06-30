@@ -251,7 +251,7 @@ fn draw_dashboard(
         f.render_widget(gaze_para, stats_chunks[2]);
 
         // Status block
-        let smoothed_str = d.smoothed_gaze.as_ref().map(|s| s.as_str()).unwrap_or("-");
+        let smoothed_str = d.smoothed_gaze.as_deref().unwrap_or("-");
         let events_str = if d.events.is_empty() {
             String::from("-")
         } else {
