@@ -1,8 +1,9 @@
 //! eyetracker-domain: Core types for eye-tracking domain
 //! Traces to: FR-EYE-CAL-001, FR-EYE-CAL-002, FR-EYE-INFER-001, FR-EYE-INFER-002, FR-EYE-INFER-003
 
-use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime};
+
+use serde::{Deserialize, Serialize};
 
 /// 2D point in screen coordinates (pixels).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

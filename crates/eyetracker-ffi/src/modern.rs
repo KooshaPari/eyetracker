@@ -7,6 +7,8 @@
 //!
 //! Traces to: FR-EYE-INTEROP-001, FR-EYE-INTEROP-002, FR-EYE-INTEROP-003
 
+use std::time::{Duration, Instant};
+
 use eyetracker_inference::accessibility::{AccessibilityAction, AccessibilityManager};
 use eyetracker_inference::calibration::{
     save_calibration, CalibrationPoint, CalibrationResult, CalibrationSample,
@@ -17,7 +19,6 @@ use eyetracker_inference::pipeline::{PipelineConfig, TrackingPipeline};
 use eyetracker_inference::privacy::{ConsentScope, PrivacyManager, PrivacyMode};
 use eyetracker_inference::smoothing::GazeSmoother;
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
 
 /// FFI-safe gaze event payload (matches the UDL dictionary)
 #[derive(Debug, Clone, Serialize, Deserialize)]
