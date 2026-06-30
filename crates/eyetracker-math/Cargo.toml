@@ -10,3 +10,10 @@ serde = { workspace = true }
 [lib]
 name = "eyetracker_math"
 path = "src/lib.rs"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "math_benches"
+harness = false
