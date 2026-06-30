@@ -241,7 +241,7 @@ impl Camera {
 
     /// Capture a single frame (blocking). Returns RGB8 pixel data.
     pub fn capture_frame(&mut self) -> Result<Frame> {
-        let camera = self.inner.as_mut().ok_or_else(|| CameraError::NotRunning)?;
+        let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
         if !self.running {
             return Err(CameraError::NotRunning.into());
         }
