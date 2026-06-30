@@ -158,7 +158,7 @@ impl KalmanState2D {
         };
 
         // State update: x = x + K * y
-        self.state = self.state + k * innovation;
+        self.state += k * innovation;
 
         // Covariance update: P = (I - K * H) * P
         let kh = k * self.h;

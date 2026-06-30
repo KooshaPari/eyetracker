@@ -184,6 +184,12 @@ impl GeometricGazeEstimator {
     }
 }
 
+impl Default for GeometricGazeEstimator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GazeEstimatorTrait for GeometricGazeEstimator {
     fn estimate(&mut self, face: &FaceResult, frame: &Frame) -> anyhow::Result<GazeResult> {
         let eye_width = face.face_box.width * 0.1;
