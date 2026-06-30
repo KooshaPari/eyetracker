@@ -5,6 +5,7 @@
 
 mod app;
 mod calibration;
+mod emit;
 mod mouse;
 mod ui;
 
@@ -58,6 +59,12 @@ struct Args {
     /// Dump gaze data as CSV to stdout
     #[arg(long)]
     csv: bool,
+
+    /// Output format for machine-readable modes (`--csv` / `--format`).
+    /// `text` (default) writes human-readable lines; `json` writes one
+    /// JSON object per line (NDJSON) compatible with `jq` and log pipelines.
+    #[arg(long, value_enum, default_value = "text")]
+    format: emit::Format,
 
     /// Duration in seconds (0 = unlimited)
     #[arg(short, long, default_value = "0")]

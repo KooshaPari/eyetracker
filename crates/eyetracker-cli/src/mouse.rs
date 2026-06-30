@@ -48,6 +48,12 @@ mod platform {
             .expect("CGEventSource::new");
         // Build a scroll event manually via the C-style API since the Rust binding
         // for `CGEventCreateScrollWheelEvent2` is not exposed in 0.23 by default.
+        // SAFETY: `source` is a valid CGEventSource obtained from
+        // `CGEventSource::new(HIDSystemState).expect(…)` above.
+        // `ScrollEventUnit::LINE` is a valid enum discriminant.
+        // `delta as i32` is sound because `lines` is bounded to [-i32::MAX/10,
+        // i32::MAX/10] at every call site (accessibility.rs clamps scroll lines
+        // to ±100). See docs/SAFETY.md § mouse.rs for the full invariant register.
         unsafe {
             use core_graphics::event::{CGEvent, CGEventTapLocation, ScrollEventUnit};
             let event = CGEvent::new_scroll_event(
