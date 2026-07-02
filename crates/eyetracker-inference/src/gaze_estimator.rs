@@ -157,6 +157,13 @@ impl GeometricGazeEstimator {
         self
     }
 
+    pub fn with_screen_distance(mut self, screen_distance_mm: f32) -> Self {
+        if screen_distance_mm.is_finite() && screen_distance_mm > 0.0 {
+            self.screen_distance_mm = screen_distance_mm;
+        }
+        self
+    }
+
     fn estimate_eye_gaze(
         &self,
         eye_center: &Landmark2D,

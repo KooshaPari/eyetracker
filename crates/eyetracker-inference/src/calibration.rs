@@ -227,6 +227,10 @@ pub fn load_calibration() -> Result<Option<CalibrationResult>> {
 /// screen, which at typical head distance is roughly the foveal radius (~1.5°).
 pub const FIXATION_TOLERANCE: f32 = 0.05;
 
+/// FR-EYE-CAL-001: maximum attempts for a calibration point before accepting
+/// the last sample and moving on.
+pub const MAX_RETRIES_PER_POINT: u32 = 3;
+
 /// FR-EYE-CAL-001: outcome of evaluating a single calibration point.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PointOutcome {

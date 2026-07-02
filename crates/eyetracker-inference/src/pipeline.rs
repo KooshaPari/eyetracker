@@ -76,8 +76,11 @@ impl TrackingPipeline {
     pub fn with_config(config: PipelineConfig) -> anyhow::Result<Self> {
         let camera = Camera::new(config.camera.clone())?;
 
-        let gaze_estimator: Box<dyn GazeEstimatorTrait> =
-            Box::new(GeometricGazeEstimator::new().with_smoothing(config.smoothing));
+        let gaze_estimator: Box<dyn GazeEstimatorTrait> = Box::new(
+            GeometricGazeEstimator::new()
+                .with_screen_distance(config.screen_distance_mm)
+                .with_smoothing(config.smoothing),
+        );
 
         Ok(Self {
             camera,

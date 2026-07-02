@@ -85,6 +85,8 @@ mod platform {
 #[derive(Debug, Clone, Copy)]
 pub enum MouseButton {
     Left,
+    #[allow(dead_code)]
+    Right,
 }
 
 impl MouseButton {
@@ -93,6 +95,7 @@ impl MouseButton {
         use core_graphics::event::CGEventType;
         match self {
             MouseButton::Left => CGEventType::LeftMouseDown,
+            MouseButton::Right => CGEventType::RightMouseDown,
         }
     }
 
@@ -101,8 +104,16 @@ impl MouseButton {
         use core_graphics::event::CGEventType;
         match self {
             MouseButton::Left => CGEventType::LeftMouseUp,
+            MouseButton::Right => CGEventType::RightMouseUp,
         }
     }
+}
+
+fn scroll_lines_from_speed(speed: f32) -> i32 {
+    if !speed.is_finite() {
+        return 1;
+    }
+    speed.round().clamp(1.0, 100.0) as i32
 }
 
 /// Translate a single accessibility action into one or more mouse events
@@ -110,11 +121,17 @@ impl MouseButton {
 ///
 /// `enabled` is a runtime kill-switch (set to false for `--no-mouse-output`,
 /// tests, or headless environments).
-pub fn dispatch(action: AccessibilityAction, screen_x: f64, screen_y: f64, enabled: bool) {
+pub fn dispatch(
+    action: AccessibilityAction,
+    screen_x: f64,
+    screen_y: f64,
+    enabled: bool,
+    scroll_speed: f32,
+) {
     if !enabled {
         debug!(
-            "mouse output disabled — action {:?} at ({}, {}) would have fired",
-            action, screen_x, screen_y
+            "mouse output disabled — action {:?} at ({}, {}) would have fired, scroll_speed={}",
+            action, screen_x, screen_y, scroll_speed
         );
         return;
     }
@@ -124,11 +141,11 @@ pub fn dispatch(action: AccessibilityAction, screen_x: f64, screen_y: f64, enabl
             platform::click_at(screen_x, screen_y, MouseButton::Left);
         }
         AccessibilityAction::ScrollUp => {
-            let lines = 3;
+            let lines = scroll_lines_from_speed(scroll_speed);
             platform::scroll_at(screen_x, screen_y, lines);
         }
         AccessibilityAction::ScrollDown => {
-            let lines = 3;
+            let lines = scroll_lines_from_speed(scroll_speed);
             platform::scroll_at(screen_x, screen_y, -lines);
         }
         AccessibilityAction::DwellStarted => {
@@ -145,10 +162,20 @@ pub fn dispatch(action: AccessibilityAction, screen_x: f64, screen_y: f64, enabl
 /// Convert a normalized [0, 1] gaze point to absolute display pixels
 /// for the given screen width / height.
 pub fn normalized_to_screen(nx: f32, ny: f32, width: u32, height: u32) -> (f64, f64) {
+    let nx = if nx.is_finite() {
+        nx.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let ny = if ny.is_finite() {
+        ny.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
     let x = (nx as f64) * (width as f64);
     let y = (ny as f64) * (height as f64);
     debug_assert!(x.is_finite() && y.is_finite(), "non-finite screen coords");
-    (x.max(0.0).min(width as f64), y.max(0.0).min(height as f64))
+    (x, y)
 }
 
 #[cfg(test)]
@@ -187,11 +214,11 @@ mod tests {
     #[test]
     fn test_dispatch_no_op_when_disabled() {
         // Should not panic on any variant when disabled.
-        dispatch(AccessibilityAction::None, 100.0, 100.0, false);
-        dispatch(AccessibilityAction::Click, 100.0, 100.0, false);
-        dispatch(AccessibilityAction::ScrollUp, 100.0, 100.0, false);
-        dispatch(AccessibilityAction::ScrollDown, 100.0, 100.0, false);
-        dispatch(AccessibilityAction::DwellStarted, 100.0, 100.0, false);
+        dispatch(AccessibilityAction::None, 100.0, 100.0, false, 0.0);
+        dispatch(AccessibilityAction::Click, 100.0, 100.0, false, 0.0);
+        dispatch(AccessibilityAction::ScrollUp, 100.0, 100.0, false, 3.0);
+        dispatch(AccessibilityAction::ScrollDown, 100.0, 100.0, false, 3.0);
+        dispatch(AccessibilityAction::DwellStarted, 100.0, 100.0, false, 0.0);
     }
 
     #[test]

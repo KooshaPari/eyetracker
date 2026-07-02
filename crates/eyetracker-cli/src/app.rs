@@ -133,11 +133,17 @@ impl AppState {
         is_fixating: bool,
         frame_w: f32,
         frame_h: f32,
-    ) -> eyetracker_inference::accessibility::AccessibilityAction {
+    ) -> (
+        eyetracker_inference::accessibility::AccessibilityAction,
+        f32,
+    ) {
         // Convert pixel-space (relative to frame center) into normalized
         // [0,1] screen coordinates for the accessibility detectors.
         let Some((cx, cy)) = smoothed_gaze else {
-            return eyetracker_inference::accessibility::AccessibilityAction::None;
+            return (
+                eyetracker_inference::accessibility::AccessibilityAction::None,
+                0.0,
+            );
         };
         let nx = (cx + frame_w / 2.0) / frame_w.max(1.0);
         let ny = (cy + frame_h / 2.0) / frame_h.max(1.0);
@@ -151,16 +157,16 @@ impl AppState {
             .update(nx, ny, is_fixating, frame_w, frame_h);
 
         // Scroll-by-gaze is independent of fixation (top/bottom zones).
-        let (scroll_action, _speed) = self.accessibility.scroll.update(ny);
+        let (scroll_action, scroll_speed) = self.accessibility.scroll.update(ny);
 
         // Dwell state machine takes precedence over scroll while fixating.
         if !matches!(
             dwell_action,
             eyetracker_inference::accessibility::AccessibilityAction::None
         ) {
-            return dwell_action;
+            return (dwell_action, 0.0);
         }
-        scroll_action
+        (scroll_action, scroll_speed)
     }
 
     /// Most recent accessibility action (for the TUI panel)
@@ -308,7 +314,7 @@ pub fn run_tui(
                         .events
                         .iter()
                         .any(|e| matches!(e, GazeEvent::FixationStart { .. }));
-                    let action: AccessibilityAction = s.tick_accessibility(
+                    let (action, scroll_speed): (AccessibilityAction, f32) = s.tick_accessibility(
                         result.smoothed_gaze,
                         is_fixating,
                         result.frame.width as f32,
@@ -333,7 +339,7 @@ pub fn run_tui(
                             screen_width,
                             screen_height,
                         );
-                        mouse::dispatch(action, sx, sy, mouse_output_enabled);
+                        mouse::dispatch(action, sx, sy, mouse_output_enabled, scroll_speed);
                     }
                     s.last_accessibility_action = Some(action);
                     let (status, deg) = s.drift_status();
@@ -424,7 +430,7 @@ pub fn run_csv_dump(
                         .events
                         .iter()
                         .any(|e| matches!(e, GazeEvent::FixationStart { .. }));
-                    let action: AccessibilityAction = s.tick_accessibility(
+                    let (action, scroll_speed): (AccessibilityAction, f32) = s.tick_accessibility(
                         result.smoothed_gaze,
                         is_fixating,
                         result.frame.width as f32,
@@ -445,7 +451,7 @@ pub fn run_csv_dump(
                         );
                         sx_f = px;
                         sy_f = py;
-                        mouse::dispatch(action, px, py, mouse_output_enabled);
+                        mouse::dispatch(action, px, py, mouse_output_enabled, scroll_speed);
                     }
                     (format!("{:?}", action), sx_f, sy_f)
                 } else {

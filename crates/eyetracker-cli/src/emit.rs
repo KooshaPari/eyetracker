@@ -5,8 +5,6 @@
 //! All machine-readable output goes to stdout; all human-readable labels
 //! and TUI chrome go to stderr so they don't corrupt piped output.
 
-#![allow(dead_code)]
-
 use serde::Serialize;
 
 /// Output format selected by the `--format` flag.
@@ -19,6 +17,7 @@ pub enum Format {
 }
 
 /// A single gaze frame emitted to stdout in the chosen format.
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct GazeFrame {
     /// Monotonic timestamp in milliseconds since the process started.
@@ -34,6 +33,7 @@ pub struct GazeFrame {
 }
 
 /// Typed error record emitted when the pipeline surfaces a recoverable error.
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct ErrorEvent {
     /// Monotonic timestamp in milliseconds.
@@ -47,6 +47,7 @@ pub struct ErrorEvent {
 }
 
 /// Emit a single gaze frame in the chosen format.
+#[allow(dead_code)]
 pub fn emit_gaze(frame: &GazeFrame, fmt: Format) {
     match fmt {
         Format::Text => {
@@ -65,6 +66,7 @@ pub fn emit_gaze(frame: &GazeFrame, fmt: Format) {
 /// Emit a recoverable error in the chosen format.
 ///
 /// Errors always go to **stderr** so they do not corrupt a JSON pipe.
+#[allow(dead_code)]
 pub fn emit_error(ev: &ErrorEvent, fmt: Format) {
     match fmt {
         Format::Text => {
@@ -84,6 +86,7 @@ pub fn emit_error(ev: &ErrorEvent, fmt: Format) {
 /// Print a plain info/status message.
 ///
 /// For JSON mode these go to stderr to avoid polluting the NDJSON stream.
+#[allow(dead_code)]
 pub fn info(msg: &str, fmt: Format) {
     match fmt {
         Format::Text => println!("{msg}"),

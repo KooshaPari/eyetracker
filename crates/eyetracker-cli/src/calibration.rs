@@ -117,9 +117,8 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
     // insufficient samples collected".
     use eyetracker_inference::calibration::{
         classify_point, CalibrationPoint as InferenceCalibrationPoint,
-        CalibrationSample as InferenceCalibrationSample, PointOutcome,
+        CalibrationSample as InferenceCalibrationSample, PointOutcome, MAX_RETRIES_PER_POINT,
     };
-    const MAX_RETRIES_PER_POINT: u32 = 3;
     // Approx 33ms per frame at the 30 FPS calibration polling rate.
     let frame_duration_ms: u64 = 33;
 

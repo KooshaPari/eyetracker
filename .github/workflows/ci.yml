@@ -28,13 +28,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: cargo check
-        run: cargo check --workspace
+        run: cargo check --workspace --all-features --locked
 
       - name: cargo clippy (deny warnings)
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-features --locked -- -D warnings
 
       - name: cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --all-features --locked
 
   fmt:
     name: Rustfmt
