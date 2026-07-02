@@ -170,7 +170,8 @@ fn main() -> Result<()> {
     }
 
     // Run interactive TUI mode
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))?;
+    let mut terminal =
+        ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))?;
     let dwell_duration = std::time::Duration::from_millis(args.dwell_ms);
     let result = app::run_tui(
         &mut terminal,

@@ -76,11 +76,11 @@ impl TrackingPipeline {
     pub fn with_config(config: PipelineConfig) -> anyhow::Result<Self> {
         let camera = Camera::new(config.camera.clone())?;
 
-        let gaze_estimator: Box<dyn GazeEstimatorTrait> = if config.use_geometric_fallback {
-            Box::new(GeometricGazeEstimator::new().with_smoothing(config.smoothing))
-        } else {
-            Box::new(GeometricGazeEstimator::new().with_smoothing(config.smoothing))
-        };
+        let gaze_estimator: Box<dyn GazeEstimatorTrait> = Box::new(
+            GeometricGazeEstimator::new()
+                .with_screen_distance(config.screen_distance_mm)
+                .with_smoothing(config.smoothing),
+        );
 
         Ok(Self {
             camera,
@@ -160,7 +160,8 @@ impl TrackingPipeline {
                 crate::classification::GazeClassification::Saccade
             );
             let (smoothed_x, smoothed_y) =
-                self.smoother.smooth(g.screen_point.x, g.screen_point.y, is_saccade);
+                self.smoother
+                    .smooth(g.screen_point.x, g.screen_point.y, is_saccade);
             Some((smoothed_x, smoothed_y))
         } else {
             None
@@ -275,8 +276,12 @@ fn create_fallback_face(frame: &Frame) -> FaceResult {
         .map(|i| {
             let progress = i as f32 / 468.0;
             Landmark3D {
-                x: face_box.x / fw + (face_box.width / fw) * (0.5 + 0.3 * (progress * 2.0 * std::f32::consts::PI).sin()),
-                y: face_box.y / fh + (face_box.height / fh) * (0.5 + 0.4 * (progress * 2.0 * std::f32::consts::PI).cos()),
+                x: face_box.x / fw
+                    + (face_box.width / fw)
+                        * (0.5 + 0.3 * (progress * 2.0 * std::f32::consts::PI).sin()),
+                y: face_box.y / fh
+                    + (face_box.height / fh)
+                        * (0.5 + 0.4 * (progress * 2.0 * std::f32::consts::PI).cos()),
                 z: 0.0,
             }
         })
@@ -290,24 +295,39 @@ fn create_fallback_face(frame: &Frame) -> FaceResult {
 
     // Override key eye landmarks
     if landmarks.len() > 133 {
-        landmarks[33] = Landmark3D { x: left_eye_center_x - 0.02, y: left_eye_center_y, z: 0.0 };
-        landmarks[133] = Landmark3D { x: left_eye_center_x + 0.02, y: left_eye_center_y, z: 0.0 };
-        landmarks[362] = Landmark3D { x: right_eye_center_x - 0.02, y: right_eye_center_y, z: 0.0 };
-        landmarks[263] = Landmark3D { x: right_eye_center_x + 0.02, y: right_eye_center_y, z: 0.0 };
+        landmarks[33] = Landmark3D {
+            x: left_eye_center_x - 0.02,
+            y: left_eye_center_y,
+            z: 0.0,
+        };
+        landmarks[133] = Landmark3D {
+            x: left_eye_center_x + 0.02,
+            y: left_eye_center_y,
+            z: 0.0,
+        };
+        landmarks[362] = Landmark3D {
+            x: right_eye_center_x - 0.02,
+            y: right_eye_center_y,
+            z: 0.0,
+        };
+        landmarks[263] = Landmark3D {
+            x: right_eye_center_x + 0.02,
+            y: right_eye_center_y,
+            z: 0.0,
+        };
     }
 
-    let (left_eye, right_eye) = extract_eye_regions(&landmarks)
-        .unwrap_or_else(|| {
-            use crate::face_mesh::EyeRegion;
-            let default = EyeRegion {
-                landmark_indices: vec![],
-                center: crate::face_mesh::Landmark2D { x: 0.5, y: 0.5 },
-                inner_corner: crate::face_mesh::Landmark2D { x: 0.48, y: 0.5 },
-                outer_corner: crate::face_mesh::Landmark2D { x: 0.52, y: 0.5 },
-                pupil: None,
-            };
-            (default.clone(), default)
-        });
+    let (left_eye, right_eye) = extract_eye_regions(&landmarks).unwrap_or_else(|| {
+        use crate::face_mesh::EyeRegion;
+        let default = EyeRegion {
+            landmark_indices: vec![],
+            center: crate::face_mesh::Landmark2D { x: 0.5, y: 0.5 },
+            inner_corner: crate::face_mesh::Landmark2D { x: 0.48, y: 0.5 },
+            outer_corner: crate::face_mesh::Landmark2D { x: 0.52, y: 0.5 },
+            pupil: None,
+        };
+        (default.clone(), default)
+    });
 
     FaceResult {
         face_box,

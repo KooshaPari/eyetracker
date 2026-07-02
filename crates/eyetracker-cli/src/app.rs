@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use eyetracker_inference::{
-    accessibility::AccessibilityAction,
+    accessibility::{AccessibilityAction, AccessibilityManager},
     classification::GazeEvent,
     drift_monitor::{DriftMonitor, DriftMonitorConfig, DriftSeverity, RecalibrationEvent},
     multi_monitor::{detect_active_display, MultiMonitorCalibration},
@@ -47,10 +47,8 @@ struct AppState {
 
 impl AppState {
     fn new(dwell_duration: std::time::Duration) -> Self {
-        let active_display =
-            detect_active_display().unwrap_or_else(|_| {
-                eyetracker_inference::multi_monitor::DisplayId::synthetic("main")
-            });
+        let active_display = detect_active_display()
+            .unwrap_or_else(|_| eyetracker_inference::multi_monitor::DisplayId::synthetic("main"));
         let mut accessibility = AccessibilityManager::default();
         accessibility.dwell.set_dwell_duration(dwell_duration);
         let mut drift_monitor = DriftMonitor::new(DriftMonitorConfig::default());
@@ -81,10 +79,7 @@ impl AppState {
                     DriftSeverity::Warning => "WARN",
                     DriftSeverity::None => "OK",
                 };
-                (
-                    label.to_string(),
-                    format!("{:.2}°", ev.drift_degrees),
-                )
+                (label.to_string(), format!("{:.2}°", ev.drift_degrees))
             }
             _ => ("OK".to_string(), "—".to_string()),
         }
@@ -95,8 +90,7 @@ impl AppState {
     fn recalibration_pending(&self) -> bool {
         match &self.last_recalibration_event {
             Some(ev) => {
-                !self.drift_monitor.is_dismissed()
-                    && matches!(ev.severity, DriftSeverity::Critical)
+                !self.drift_monitor.is_dismissed() && matches!(ev.severity, DriftSeverity::Critical)
             }
             None => false,
         }
@@ -105,10 +99,7 @@ impl AppState {
     /// Format the active display label
     fn display_label(&self) -> String {
         let (w, h) = self.active_display.resolution;
-        format!(
-            "{}  {}x{}",
-            self.active_display.label, w, h
-        )
+        format!("{}  {}x{}", self.active_display.label, w, h)
     }
 
     /// Whether the active display has a calibration loaded
@@ -121,9 +112,7 @@ impl AppState {
     /// Build the privacy banner text
     fn privacy_banner(&self) -> String {
         match self.privacy.mode {
-            PrivacyMode::LocalOnly => {
-                "Local only\nNo data leaves device".to_string()
-            }
+            PrivacyMode::LocalOnly => "Local only\nNo data leaves device".to_string(),
             PrivacyMode::LocalWithExport => {
                 let n = self.privacy.consent_count();
                 format!(
@@ -144,11 +133,17 @@ impl AppState {
         is_fixating: bool,
         frame_w: f32,
         frame_h: f32,
-    ) -> eyetracker_inference::accessibility::AccessibilityAction {
+    ) -> (
+        eyetracker_inference::accessibility::AccessibilityAction,
+        f32,
+    ) {
         // Convert pixel-space (relative to frame center) into normalized
         // [0,1] screen coordinates for the accessibility detectors.
         let Some((cx, cy)) = smoothed_gaze else {
-            return eyetracker_inference::accessibility::AccessibilityAction::None;
+            return (
+                eyetracker_inference::accessibility::AccessibilityAction::None,
+                0.0,
+            );
         };
         let nx = (cx + frame_w / 2.0) / frame_w.max(1.0);
         let ny = (cy + frame_h / 2.0) / frame_h.max(1.0);
@@ -156,16 +151,22 @@ impl AppState {
         let ny = ny.clamp(0.0, 1.0);
 
         // Dwell-click consumes the fixating flag.
-        let dwell_action = self.accessibility.dwell.update(nx, ny, is_fixating, frame_w, frame_h);
+        let dwell_action = self
+            .accessibility
+            .dwell
+            .update(nx, ny, is_fixating, frame_w, frame_h);
 
         // Scroll-by-gaze is independent of fixation (top/bottom zones).
-        let (scroll_action, _speed) = self.accessibility.scroll.update(ny);
+        let (scroll_action, scroll_speed) = self.accessibility.scroll.update(ny);
 
         // Dwell state machine takes precedence over scroll while fixating.
-        if !matches!(dwell_action, eyetracker_inference::accessibility::AccessibilityAction::None) {
-            return dwell_action;
+        if !matches!(
+            dwell_action,
+            eyetracker_inference::accessibility::AccessibilityAction::None
+        ) {
+            return (dwell_action, 0.0);
         }
-        scroll_action
+        (scroll_action, scroll_speed)
     }
 
     /// Most recent accessibility action (for the TUI panel)
@@ -244,9 +245,9 @@ pub fn run_tui(
                     g.combined.x, g.combined.y, g.combined.z
                 )
             });
-            let smoothed = result.smoothed_gaze.map(|(x, y)| {
-                format!("({:.1}, {:.1})", x, y)
-            });
+            let smoothed = result
+                .smoothed_gaze
+                .map(|(x, y)| format!("({:.1}, {:.1})", x, y));
             let events_summary = if result.events.is_empty() {
                 String::new()
             } else {
@@ -268,7 +269,15 @@ pub fn run_tui(
                 .unwrap_or_else(|| "N/A".to_string());
 
             // Lock-free copy of state for the UI closure
-            let (drift_status, drift_deg_str, display_label, display_calibrated, privacy_banner, recal_pending, last_action_dbg) = {
+            let (
+                drift_status,
+                drift_deg_str,
+                display_label,
+                display_calibrated,
+                privacy_banner,
+                recal_pending,
+                last_action_dbg,
+            ) = {
                 if let Ok(mut s) = state_clone.lock() {
                     // FR-EYE-CAL-004: consume any pending dismiss request
                     if dismiss_flag_closure.swap(false, std::sync::atomic::Ordering::SeqCst) {
@@ -280,10 +289,11 @@ pub fn run_tui(
                     // Feed the actual smoothed gaze into the drift monitor
                     // so FR-EYE-CAL-004 auto-trigger fires from real data.
                     if let Some((x, y)) = result.smoothed_gaze {
-                        if let Some(ev) = s
-                            .drift_monitor
-                            .record_sample(x, y, result.gaze.as_ref().map(|g| g.confidence).unwrap_or(0.0))
-                        {
+                        if let Some(ev) = s.drift_monitor.record_sample(
+                            x,
+                            y,
+                            result.gaze.as_ref().map(|g| g.confidence).unwrap_or(0.0),
+                        ) {
                             // Capture the diagnostic fields before moving the
                             // event into AppState so the tracing macro can
                             // reference them by value.
@@ -300,10 +310,11 @@ pub fn run_tui(
                     }
                     // FR-EYE-ACCESS-001/002: feed the live gaze + fixation
                     // state into the accessibility detectors.
-                    let is_fixating = result.events.iter().any(|e| {
-                        matches!(e, GazeEvent::FixationStart { .. })
-                    });
-                    let action: AccessibilityAction = s.tick_accessibility(
+                    let is_fixating = result
+                        .events
+                        .iter()
+                        .any(|e| matches!(e, GazeEvent::FixationStart { .. }));
+                    let (action, scroll_speed): (AccessibilityAction, f32) = s.tick_accessibility(
                         result.smoothed_gaze,
                         is_fixating,
                         result.frame.width as f32,
@@ -328,7 +339,7 @@ pub fn run_tui(
                             screen_width,
                             screen_height,
                         );
-                        mouse::dispatch(action, sx, sy, mouse_output_enabled);
+                        mouse::dispatch(action, sx, sy, mouse_output_enabled, scroll_speed);
                     }
                     s.last_accessibility_action = Some(action);
                     let (status, deg) = s.drift_status();
@@ -415,10 +426,11 @@ pub fn run_csv_dump(
 
                 // Tick accessibility on each frame; dispatch to OS (or no-op).
                 let (action_dbg, sx, sy) = if let Ok(mut s) = state.lock() {
-                    let is_fixating = result.events.iter().any(|e| {
-                        matches!(e, GazeEvent::FixationStart { .. })
-                    });
-                    let action: AccessibilityAction = s.tick_accessibility(
+                    let is_fixating = result
+                        .events
+                        .iter()
+                        .any(|e| matches!(e, GazeEvent::FixationStart { .. }));
+                    let (action, scroll_speed): (AccessibilityAction, f32) = s.tick_accessibility(
                         result.smoothed_gaze,
                         is_fixating,
                         result.frame.width as f32,
@@ -439,7 +451,7 @@ pub fn run_csv_dump(
                         );
                         sx_f = px;
                         sy_f = py;
-                        mouse::dispatch(action, px, py, mouse_output_enabled);
+                        mouse::dispatch(action, px, py, mouse_output_enabled, scroll_speed);
                     }
                     (format!("{:?}", action), sx_f, sy_f)
                 } else {

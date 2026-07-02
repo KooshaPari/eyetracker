@@ -143,15 +143,51 @@ impl CalibrationResult {
 /// Standard 9-point calibration grid positions (3x3)
 pub fn default_grid_points() -> Vec<CalibrationPoint> {
     vec![
-        CalibrationPoint { x: 0.1, y: 0.1, label: "Top-left".into() },
-        CalibrationPoint { x: 0.5, y: 0.1, label: "Top-center".into() },
-        CalibrationPoint { x: 0.9, y: 0.1, label: "Top-right".into() },
-        CalibrationPoint { x: 0.1, y: 0.5, label: "Mid-left".into() },
-        CalibrationPoint { x: 0.5, y: 0.5, label: "Center".into() },
-        CalibrationPoint { x: 0.9, y: 0.5, label: "Mid-right".into() },
-        CalibrationPoint { x: 0.1, y: 0.9, label: "Bottom-left".into() },
-        CalibrationPoint { x: 0.5, y: 0.9, label: "Bottom-center".into() },
-        CalibrationPoint { x: 0.9, y: 0.9, label: "Bottom-right".into() },
+        CalibrationPoint {
+            x: 0.1,
+            y: 0.1,
+            label: "Top-left".into(),
+        },
+        CalibrationPoint {
+            x: 0.5,
+            y: 0.1,
+            label: "Top-center".into(),
+        },
+        CalibrationPoint {
+            x: 0.9,
+            y: 0.1,
+            label: "Top-right".into(),
+        },
+        CalibrationPoint {
+            x: 0.1,
+            y: 0.5,
+            label: "Mid-left".into(),
+        },
+        CalibrationPoint {
+            x: 0.5,
+            y: 0.5,
+            label: "Center".into(),
+        },
+        CalibrationPoint {
+            x: 0.9,
+            y: 0.5,
+            label: "Mid-right".into(),
+        },
+        CalibrationPoint {
+            x: 0.1,
+            y: 0.9,
+            label: "Bottom-left".into(),
+        },
+        CalibrationPoint {
+            x: 0.5,
+            y: 0.9,
+            label: "Bottom-center".into(),
+        },
+        CalibrationPoint {
+            x: 0.9,
+            y: 0.9,
+            label: "Bottom-right".into(),
+        },
     ]
 }
 
@@ -191,6 +227,10 @@ pub fn load_calibration() -> Result<Option<CalibrationResult>> {
 /// screen, which at typical head distance is roughly the foveal radius (~1.5°).
 pub const FIXATION_TOLERANCE: f32 = 0.05;
 
+/// FR-EYE-CAL-001: maximum attempts for a calibration point before accepting
+/// the last sample and moving on.
+pub const MAX_RETRIES_PER_POINT: u32 = 3;
+
 /// FR-EYE-CAL-001: outcome of evaluating a single calibration point.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PointOutcome {
@@ -223,10 +263,7 @@ pub const MIN_SAMPLES_FOR_EVAL: usize = 5;
 /// and computes the implied fixation duration by multiplying by the
 /// `frame_duration_ms`. The point passes (`Stable`) if the resulting
 /// fixation duration is at least `CalibrationResult::REQUIRED_FIXATION_MS`.
-pub fn classify_point(
-    sample: &CalibrationSample,
-    frame_duration_ms: u64,
-) -> PointOutcome {
+pub fn classify_point(sample: &CalibrationSample, frame_duration_ms: u64) -> PointOutcome {
     let n = sample.gaze_samples.len();
     if n < MIN_SAMPLES_FOR_EVAL {
         return PointOutcome::InsufficientSamples { collected: n };
@@ -284,7 +321,11 @@ mod tests {
 
     fn make_sample(x: f32, y: f32, gaze: Vec<(f32, f32, f32)>) -> CalibrationSample {
         CalibrationSample {
-            point: CalibrationPoint { x, y, label: "p".into() },
+            point: CalibrationPoint {
+                x,
+                y,
+                label: "p".into(),
+            },
             gaze_samples: gaze,
             timestamp: Instant::now(),
         }
@@ -317,7 +358,11 @@ mod tests {
         let noisy: Vec<(f32, f32, f32)> = (0..30)
             .map(|i| {
                 let t = i as f32;
-                (0.05 + (t * 0.31).sin().abs() * 0.9, 0.05 + (t * 0.47).cos().abs() * 0.9, 0.0)
+                (
+                    0.05 + (t * 0.31).sin().abs() * 0.9,
+                    0.05 + (t * 0.47).cos().abs() * 0.9,
+                    0.0,
+                )
             })
             .collect();
         let samples = vec![make_sample(0.5, 0.5, noisy)];
@@ -381,16 +426,17 @@ mod tests {
             .collect();
         let r = CalibrationResult::from_samples(samples);
         let drift = r.residual_drift_degrees().unwrap();
-        assert!(drift > 1.5 && drift < 3.0, "expected ~2.1° drift, got {drift}");
+        assert!(
+            drift > 1.5 && drift < 3.0,
+            "expected ~2.1° drift, got {drift}"
+        );
         assert!(!r.is_within_tolerance(), "should fail tolerance check");
     }
 
     #[test]
     fn test_persistence_round_trip() {
-        let tmp = std::env::temp_dir().join(format!(
-            "eyetracker-cal-test-{}.bin",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("eyetracker-cal-test-{}.bin", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
 
         let samples: Vec<_> = default_grid_points()
@@ -412,15 +458,14 @@ mod tests {
     }
 
     fn save_calibration_at(r: &CalibrationResult, p: &std::path::Path) -> Result<()> {
-        let encoded = bincode::serialize(r)
-            .map_err(|e| anyhow::anyhow!("Failed: {e}"))?;
+        let encoded = bincode::serialize(r).map_err(|e| anyhow::anyhow!("Failed: {e}"))?;
         std::fs::write(p, encoded)?;
         Ok(())
     }
     fn load_calibration_at(p: &std::path::Path) -> Result<Option<CalibrationResult>> {
         let encoded = std::fs::read(p)?;
-        let r: CalibrationResult = bincode::deserialize(&encoded)
-            .map_err(|e| anyhow::anyhow!("Failed: {e}"))?;
+        let r: CalibrationResult =
+            bincode::deserialize(&encoded).map_err(|e| anyhow::anyhow!("Failed: {e}"))?;
         Ok(Some(r))
     }
 
@@ -430,7 +475,11 @@ mod tests {
     fn make_perfect_sample(target_x: f32, target_y: f32, n: usize) -> CalibrationSample {
         let gaze = vec![(target_x, target_y, 0.0); n];
         CalibrationSample {
-            point: CalibrationPoint { x: target_x, y: target_y, label: "p".into() },
+            point: CalibrationPoint {
+                x: target_x,
+                y: target_y,
+                label: "p".into(),
+            },
             gaze_samples: gaze,
             timestamp: Instant::now(),
         }
@@ -442,7 +491,10 @@ mod tests {
         let s = make_perfect_sample(0.5, 0.5, 30);
         let outcome = classify_point(&s, 30);
         match outcome {
-            PointOutcome::Stable { fixation_ms, stable_count } => {
+            PointOutcome::Stable {
+                fixation_ms,
+                stable_count,
+            } => {
                 assert_eq!(stable_count, 30);
                 assert_eq!(fixation_ms, 900);
             }
@@ -453,7 +505,11 @@ mod tests {
     #[test]
     fn fr_eye_cal_001_classify_no_fixation() {
         // 30 wildly-drifting samples: gaze covers a large area, none stable.
-        let pt = CalibrationPoint { x: 0.5, y: 0.5, label: "p".into() };
+        let pt = CalibrationPoint {
+            x: 0.5,
+            y: 0.5,
+            label: "p".into(),
+        };
         let gaze: Vec<(f32, f32, f32)> = (0..30)
             .map(|i| {
                 let t = i as f32 * 0.31;
@@ -486,7 +542,11 @@ mod tests {
     #[test]
     fn fr_eye_cal_001_partial_fixation_below_threshold() {
         // 10 stable samples + 20 drifting samples. 10 * 30ms = 300ms < 500ms.
-        let pt = CalibrationPoint { x: 0.5, y: 0.5, label: "p".into() };
+        let pt = CalibrationPoint {
+            x: 0.5,
+            y: 0.5,
+            label: "p".into(),
+        };
         let mut gaze = vec![(0.5, 0.5, 0.0); 10];
         for i in 0..20 {
             let t = i as f32 * 0.31;
@@ -509,7 +569,11 @@ mod tests {
         // First call: NoFixation (drift). Second call: Stable. Retry should succeed.
         let attempt = std::cell::Cell::new(0u32);
         let stable = make_perfect_sample(0.5, 0.5, 30);
-        let unstable_pt = CalibrationPoint { x: 0.5, y: 0.5, label: "p".into() };
+        let unstable_pt = CalibrationPoint {
+            x: 0.5,
+            y: 0.5,
+            label: "p".into(),
+        };
         let unstable_gaze: Vec<(f32, f32, f32)> = (0..30)
             .map(|i| {
                 let t = i as f32 * 0.31;
@@ -542,7 +606,11 @@ mod tests {
     fn fr_eye_cal_001_retry_exhausts() {
         // Always returns NoFixation; retry should give up after max_retries.
         let attempt = std::cell::Cell::new(0u32);
-        let pt = CalibrationPoint { x: 0.5, y: 0.5, label: "p".into() };
+        let pt = CalibrationPoint {
+            x: 0.5,
+            y: 0.5,
+            label: "p".into(),
+        };
         let unstable_gaze: Vec<(f32, f32, f32)> = (0..30)
             .map(|i| {
                 let t = i as f32 * 0.31;

@@ -146,12 +146,12 @@ fn draw_dashboard(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),   // Title
-            Constraint::Length(8),   // Stats row
-            Constraint::Length(9),   // Gaze visualization
-            Constraint::Length(7),   // Drift / Display / Privacy
-            Constraint::Min(3),      // Sparklines
-            Constraint::Length(3),   // Controls help
+            Constraint::Length(3), // Title
+            Constraint::Length(8), // Stats row
+            Constraint::Length(9), // Gaze visualization
+            Constraint::Length(7), // Drift / Display / Privacy
+            Constraint::Min(3),    // Sparklines
+            Constraint::Length(3), // Controls help
         ])
         .split(area);
 
@@ -180,13 +180,21 @@ fn draw_dashboard(
         let fps_block = Block::default()
             .title(" FPS ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(if d.fps > 30.0 { Color::Green } else { Color::Red }));
+            .border_style(Style::default().fg(if d.fps > 30.0 {
+                Color::Green
+            } else {
+                Color::Red
+            }));
         let fps_gauge = Gauge::default()
             .block(fps_block)
             .gauge_style(
                 Style::default()
                     .fg(Color::White)
-                    .bg(if d.fps > 30.0 { Color::Green } else { Color::Red })
+                    .bg(if d.fps > 30.0 {
+                        Color::Green
+                    } else {
+                        Color::Red
+                    })
                     .add_modifier(Modifier::BOLD),
             )
             .percent((d.fps.min(120.0) / 120.0 * 100.0) as u16)
@@ -197,13 +205,21 @@ fn draw_dashboard(
         let proc_block = Block::default()
             .title(" Process ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(if d.processing_ms < 33.0 { Color::Green } else { Color::Red }));
+            .border_style(Style::default().fg(if d.processing_ms < 33.0 {
+                Color::Green
+            } else {
+                Color::Red
+            }));
         let proc_gauge = Gauge::default()
             .block(proc_block)
             .gauge_style(
                 Style::default()
                     .fg(Color::White)
-                    .bg(if d.processing_ms < 33.0 { Color::Green } else { Color::Red })
+                    .bg(if d.processing_ms < 33.0 {
+                        Color::Green
+                    } else {
+                        Color::Red
+                    })
                     .add_modifier(Modifier::BOLD),
             )
             .percent((d.processing_ms.min(100.0) / 100.0 * 100.0) as u16)
@@ -211,29 +227,27 @@ fn draw_dashboard(
         f.render_widget(proc_gauge, stats_chunks[1]);
 
         // Gaze vector
-        let gaze_display = d
-            .gaze_vector
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or("No gaze");
+        let gaze_display = d.gaze_vector.as_deref().unwrap_or("No gaze");
         let gaze_block = Block::default()
             .title(" Gaze ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(if d.face_detected { Color::Green } else { Color::Yellow }));
+            .border_style(Style::default().fg(if d.face_detected {
+                Color::Green
+            } else {
+                Color::Yellow
+            }));
         let gaze_para = Paragraph::new(Line::from(Span::styled(
             gaze_display,
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         )))
         .block(gaze_block)
         .alignment(Alignment::Center);
         f.render_widget(gaze_para, stats_chunks[2]);
 
         // Status block
-        let smoothed_str = d
-            .smoothed_gaze
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or("-");
+        let smoothed_str = d.smoothed_gaze.as_deref().unwrap_or("-");
         let events_str = if d.events.is_empty() {
             String::from("-")
         } else {
@@ -287,26 +301,38 @@ fn draw_dashboard(
     // Crosshair lines (unused currently, kept for reference)
     let _crosshair_chars = [
         ((cx as i32, crosshair_area.y as i32 - 1), "│"),
-        ((cx as i32, crosshair_area.y as i32 + crosshair_area.height as i32 + 1), "│"),
+        (
+            (
+                cx as i32,
+                crosshair_area.y as i32 + crosshair_area.height as i32 + 1,
+            ),
+            "│",
+        ),
         ((crosshair_area.x as i32 - 1, cy as i32), "─"),
-        ((crosshair_area.x as i32 + crosshair_area.width as i32 + 1, cy as i32), "─"),
+        (
+            (
+                crosshair_area.x as i32 + crosshair_area.width as i32 + 1,
+                cy as i32,
+            ),
+            "─",
+        ),
     ];
 
     // Draw gaze point if we have data
     if let Some(ref d) = data {
         if let Some(ref _gaze_str) = d.gaze_vector {
-            let gaze_point = (
-                (cx as f32 + d.processing_ms as f32 * 0.1) as u16,
-                cy,
-            );
+            let gaze_point = ((cx as f32 + d.processing_ms as f32 * 0.1) as u16, cy);
             let gaze_marker = Paragraph::new("●")
                 .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
-            f.render_widget(gaze_marker, Rect::new(
-                gaze_point.0.saturating_sub(1),
-                gaze_point.1.saturating_sub(1),
-                3,
-                3,
-            ));
+            f.render_widget(
+                gaze_marker,
+                Rect::new(
+                    gaze_point.0.saturating_sub(1),
+                    gaze_point.1.saturating_sub(1),
+                    3,
+                    3,
+                ),
+            );
         }
     }
 
@@ -344,7 +370,9 @@ fn draw_dashboard(
             Span::styled("Status: ", Style::default().fg(Color::DarkGray)),
             Span::styled(
                 drift_status_str,
-                Style::default().fg(drift_color).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(drift_color)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
@@ -353,17 +381,24 @@ fn draw_dashboard(
         ]),
     ];
     // FR-EYE-CAL-004: surface the auto-triggered recalibration dialog
-    if data.as_ref().map(|d| d.recalibration_pending).unwrap_or(false) {
+    if data
+        .as_ref()
+        .map(|d| d.recalibration_pending)
+        .unwrap_or(false)
+    {
         drift_lines.push(Line::from(""));
-        drift_lines.push(Line::from(vec![
-            Span::styled(
-                "Recalibrate?",
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            ),
-        ]));
+        drift_lines.push(Line::from(vec![Span::styled(
+            "Recalibrate?",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )]));
         drift_lines.push(Line::from(vec![
             Span::styled("Press ", Style::default().fg(Color::DarkGray)),
-            Span::styled("[R]", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[R]",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" to dismiss", Style::default().fg(Color::DarkGray)),
         ]));
     }
@@ -384,21 +419,27 @@ fn draw_dashboard(
         .unwrap_or_else(|| "-".to_string());
     let cal_state = data
         .as_ref()
-        .map(|d| if d.display_calibrated { "✓ calibrated" } else { "○ not calibrated" })
+        .map(|d| {
+            if d.display_calibrated {
+                "✓ calibrated"
+            } else {
+                "○ not calibrated"
+            }
+        })
         .unwrap_or("-");
     let disp_lines = vec![
         Line::from(disp_label),
         Line::from(""),
-        Line::from(vec![
-            Span::styled(
-                cal_state,
-                Style::default().fg(if data.as_ref().map(|d| d.display_calibrated).unwrap_or(false) {
+        Line::from(vec![Span::styled(
+            cal_state,
+            Style::default().fg(
+                if data.as_ref().map(|d| d.display_calibrated).unwrap_or(false) {
                     Color::Green
                 } else {
                     Color::Yellow
-                }),
+                },
             ),
-        ]),
+        )]),
     ];
     let disp_para = Paragraph::new(disp_lines)
         .block(disp_block)
@@ -458,22 +499,49 @@ fn draw_dashboard(
 
     // Help bar
     let mut help_spans = vec![
-        Span::styled(" [q] ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " [q] ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("Quit  "),
-        Span::styled(" [r] ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " [r] ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("Reset  "),
-        Span::styled(" [Esc] ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " [Esc] ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("Exit"),
     ];
-    if data.as_ref().map(|d| d.recalibration_pending).unwrap_or(false) {
+    if data
+        .as_ref()
+        .map(|d| d.recalibration_pending)
+        .unwrap_or(false)
+    {
         help_spans.push(Span::raw("  "));
-        help_spans.push(Span::styled(" [d] ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
+        help_spans.push(Span::styled(
+            " [d] ",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        ));
         help_spans.push(Span::raw("Dismiss recalibration"));
     }
     // FR-EYE-ACCESS-001: surface dwell-click in the help bar whenever
     // the user's fixation is being monitored (configurable via --dwell-ms)
     help_spans.push(Span::raw("  "));
-    help_spans.push(Span::styled(" dwell ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)));
+    help_spans.push(Span::styled(
+        " dwell ",
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    ));
     help_spans.push(Span::raw("= fixate to click"));
     let help_text = Paragraph::new(Line::from(help_spans))
         .alignment(Alignment::Center)

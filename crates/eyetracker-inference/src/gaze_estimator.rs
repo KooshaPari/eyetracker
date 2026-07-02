@@ -157,6 +157,13 @@ impl GeometricGazeEstimator {
         self
     }
 
+    pub fn with_screen_distance(mut self, screen_distance_mm: f32) -> Self {
+        if screen_distance_mm.is_finite() && screen_distance_mm > 0.0 {
+            self.screen_distance_mm = screen_distance_mm;
+        }
+        self
+    }
+
     fn estimate_eye_gaze(
         &self,
         eye_center: &Landmark2D,
@@ -171,7 +178,10 @@ impl GeometricGazeEstimator {
         let (pupil_x, pupil_y) = if let Some(p) = pupil {
             (p.x, p.y)
         } else {
-            (eye_cx + (eye_outer.x - eye_inner.x) * 0.02, eye_cy + eye_width * 0.01)
+            (
+                eye_cx + (eye_outer.x - eye_inner.x) * 0.02,
+                eye_cy + eye_width * 0.01,
+            )
         };
 
         let gaze_x = (pupil_x - eye_cx) / eye_width.max(1.0);
@@ -181,12 +191,14 @@ impl GeometricGazeEstimator {
     }
 }
 
+impl Default for GeometricGazeEstimator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GazeEstimatorTrait for GeometricGazeEstimator {
-    fn estimate(
-        &mut self,
-        face: &FaceResult,
-        frame: &Frame,
-    ) -> anyhow::Result<GazeResult> {
+    fn estimate(&mut self, face: &FaceResult, frame: &Frame) -> anyhow::Result<GazeResult> {
         let eye_width = face.face_box.width * 0.1;
 
         let left = self.estimate_eye_gaze(
@@ -236,8 +248,10 @@ impl GazeEstimatorTrait for GeometricGazeEstimator {
                 combined: smooth_gaze(&prev.combined, &result.combined, self.smoothing),
                 confidence: result.confidence,
                 screen_point: Point2D::new(
-                    prev.screen_point.x * self.smoothing + result.screen_point.x * (1.0 - self.smoothing),
-                    prev.screen_point.y * self.smoothing + result.screen_point.y * (1.0 - self.smoothing),
+                    prev.screen_point.x * self.smoothing
+                        + result.screen_point.x * (1.0 - self.smoothing),
+                    prev.screen_point.y * self.smoothing
+                        + result.screen_point.y * (1.0 - self.smoothing),
                 ),
             }
         } else {

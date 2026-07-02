@@ -68,7 +68,11 @@ pub struct KalmanState2D {
 impl KalmanState2D {
     /// Create a new filter with default noise levels.
     pub fn new() -> Self {
-        Self::with_noise(DEFAULT_PROCESS_NOISE_POS, DEFAULT_PROCESS_NOISE_VEL, DEFAULT_MEASUREMENT_NOISE)
+        Self::with_noise(
+            DEFAULT_PROCESS_NOISE_POS,
+            DEFAULT_PROCESS_NOISE_VEL,
+            DEFAULT_MEASUREMENT_NOISE,
+        )
     }
 
     /// Create a filter with explicit noise variances.
@@ -76,7 +80,11 @@ impl KalmanState2D {
     /// * `process_noise_pos` — variance for position components of Q
     /// * `process_noise_vel` — variance for velocity components of Q
     /// * `measurement_noise` — variance for both axes of R
-    pub fn with_noise(process_noise_pos: f32, process_noise_vel: f32, measurement_noise: f32) -> Self {
+    pub fn with_noise(
+        process_noise_pos: f32,
+        process_noise_vel: f32,
+        measurement_noise: f32,
+    ) -> Self {
         let dt = DEFAULT_DT;
 
         // F = [1 0 dt 0]
@@ -84,18 +92,12 @@ impl KalmanState2D {
         //     [0 0 1  0]
         //     [0 0 0  1]
         let f = SMatrix::<f32, 4, 4>::new(
-            1.0, 0.0, dt,  0.0,
-            0.0, 1.0, 0.0, dt,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
+            1.0, 0.0, dt, 0.0, 0.0, 1.0, 0.0, dt, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
         );
 
         // H = [1 0 0 0]
         //     [0 1 0 0]
-        let h = SMatrix::<f32, 2, 4>::new(
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-        );
+        let h = SMatrix::<f32, 2, 4>::new(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
 
         // Initial covariance: moderate uncertainty
         let p = SMatrix::<f32, 4, 4>::identity() * 100.0;
@@ -156,7 +158,7 @@ impl KalmanState2D {
         };
 
         // State update: x = x + K * y
-        self.state = self.state + k * innovation;
+        self.state += k * innovation;
 
         // Covariance update: P = (I - K * H) * P
         let kh = k * self.h;
@@ -213,9 +215,17 @@ impl GazeSmoother {
     ///   measurements more / smooths less).
     /// * `process_noise_vel` — velocity-component process noise.
     /// * `measurement_noise` — measurement variance (higher = filter smooths more).
-    pub fn with_noise(process_noise_pos: f32, process_noise_vel: f32, measurement_noise: f32) -> Self {
+    pub fn with_noise(
+        process_noise_pos: f32,
+        process_noise_vel: f32,
+        measurement_noise: f32,
+    ) -> Self {
         Self {
-            filter: KalmanState2D::with_noise(process_noise_pos, process_noise_vel, measurement_noise),
+            filter: KalmanState2D::with_noise(
+                process_noise_pos,
+                process_noise_vel,
+                measurement_noise,
+            ),
             process_noise_pos,
             process_noise_vel,
             measurement_noise,
@@ -330,11 +340,7 @@ mod tests {
             "vx should be positive for rightward movement, got {}",
             vx,
         );
-        assert!(
-            vy.abs() < 1.0,
-            "vy should be near zero, got {}",
-            vy,
-        );
+        assert!(vy.abs() < 1.0, "vy should be near zero, got {}", vy,);
 
         // Now feed leftward movement.
         let mut kf2 = KalmanState2D::new();
@@ -372,7 +378,11 @@ mod tests {
         assert_eq!(kf.state[3], 0.0);
 
         // Covariance should have been restored to the large initial value.
-        assert!((kf.p[(0, 0)] - 100.0).abs() < 1.0, "P[0,0] should be ~100 after reset, got {}", kf.p[(0, 0)]);
+        assert!(
+            (kf.p[(0, 0)] - 100.0).abs() < 1.0,
+            "P[0,0] should be ~100 after reset, got {}",
+            kf.p[(0, 0)]
+        );
 
         // The first post-reset update: the Kalman gain is high (~0.89 given
         // default noise) but not 1.0, so the estimate is a weighted blend

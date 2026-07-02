@@ -80,9 +80,7 @@ impl MultiMonitorCalibration {
 
     /// Load calibration for a specific display (returns None if not found)
     pub fn load_for(&self, display_uuid: &str) -> Option<&CalibrationResult> {
-        self.calibrations
-            .get(display_uuid)
-            .map(|(_, c)| c)
+        self.calibrations.get(display_uuid).map(|(_, c)| c)
     }
 
     /// List all stored displays

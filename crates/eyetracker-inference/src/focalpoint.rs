@@ -86,7 +86,10 @@ impl FocalPointConnector {
             .smoothed_gaze
             .map(|(x, y)| (x, y, true))
             .or_else(|| {
-                result.gaze.as_ref().map(|g| (g.combined.x, g.combined.y, false))
+                result
+                    .gaze
+                    .as_ref()
+                    .map(|g| (g.combined.x, g.combined.y, false))
             })
             .unwrap_or((0.0, 0.0, false));
 
@@ -232,9 +235,21 @@ mod tests {
         r.smoothed_gaze = None;
         r.gaze = Some(crate::gaze_estimator::GazeResult {
             screen_point: crate::gaze_estimator::Point2D { x: 0.3, y: 0.4 },
-            combined: crate::gaze_estimator::GazeVector { x: 0.3, y: 0.4, z: 0.0 },
-            left: crate::gaze_estimator::GazeVector { x: 0.0, y: 0.0, z: 0.0 },
-            right: crate::gaze_estimator::GazeVector { x: 0.0, y: 0.0, z: 0.0 },
+            combined: crate::gaze_estimator::GazeVector {
+                x: 0.3,
+                y: 0.4,
+                z: 0.0,
+            },
+            left: crate::gaze_estimator::GazeVector {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            right: crate::gaze_estimator::GazeVector {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             confidence: 0.9,
         });
         c.publish(&r).expect("publish");

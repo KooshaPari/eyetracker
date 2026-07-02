@@ -7,8 +7,8 @@ use anyhow::{anyhow, Result};
 use nokhwa::{
     pixel_format::RgbFormat,
     utils::{
-        ApiBackend, CameraFormat, CameraIndex, FrameFormat,
-        RequestedFormat, RequestedFormatType, Resolution,
+        ApiBackend, CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType,
+        Resolution,
     },
     Camera as NokhwaCamera,
 };
@@ -178,12 +178,9 @@ impl Camera {
     pub fn new(config: CameraConfig) -> Result<Self> {
         let index = CameraIndex::Index(config.camera_index as u32);
         let resolution = Resolution::new(config.width, config.height);
-        let camera_format = CameraFormat::new(
-            resolution,
-            FrameFormat::RAWRGB,
-            config.target_fps,
-        );
-        let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(camera_format));
+        let camera_format = CameraFormat::new(resolution, FrameFormat::RAWRGB, config.target_fps);
+        let requested =
+            RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(camera_format));
 
         let camera = NokhwaCamera::new(index, requested)
             .map_err(|e| anyhow!("Failed to create camera: {e}"))?;
@@ -244,7 +241,7 @@ impl Camera {
 
     /// Capture a single frame (blocking). Returns RGB8 pixel data.
     pub fn capture_frame(&mut self) -> Result<Frame> {
-        let camera = self.inner.as_mut().ok_or_else(|| CameraError::NotRunning)?;
+        let camera = self.inner.as_mut().ok_or(CameraError::NotRunning)?;
         if !self.running {
             return Err(CameraError::NotRunning.into());
         }

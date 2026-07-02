@@ -16,8 +16,8 @@ mod platform {
 
     /// Send a click + release at the absolute display coordinates.
     pub fn click_at(x: f64, y: f64, button: MouseButton) {
-        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-            .expect("CGEventSource::new");
+        let source =
+            CGEventSource::new(CGEventSourceStateID::HIDSystemState).expect("CGEventSource::new");
         let down = CGEvent::new_mouse_event(
             source.clone(),
             button.down_event(),
@@ -44,8 +44,8 @@ mod platform {
         // macOS or stripped environments.
         // The conversion: 1 line ≈ 10 wheel units (Apple convention).
         let delta = (lines * 10) as i64;
-        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-            .expect("CGEventSource::new");
+        let source =
+            CGEventSource::new(CGEventSourceStateID::HIDSystemState).expect("CGEventSource::new");
         // Build a scroll event manually via the C-style API since the Rust binding
         // for `CGEventCreateScrollWheelEvent2` is not exposed in 0.23 by default.
         // SAFETY: `source` is a valid CGEventSource obtained from
@@ -56,14 +56,8 @@ mod platform {
         // to ±100). See docs/SAFETY.md § mouse.rs for the full invariant register.
         unsafe {
             use core_graphics::event::{CGEvent, CGEventTapLocation, ScrollEventUnit};
-            let event = CGEvent::new_scroll_event(
-                source,
-                ScrollEventUnit::LINE,
-                1,
-                delta as i32,
-                0,
-                0,
-            );
+            let event =
+                CGEvent::new_scroll_event(source, ScrollEventUnit::LINE, 1, delta as i32, 0, 0);
             if let Some(ev) = event {
                 ev.post(CGEventTapLocation::HID);
                 debug!("scroll posted at ({}, {}), lines={}", x, y, lines);
@@ -91,6 +85,7 @@ mod platform {
 #[derive(Debug, Clone, Copy)]
 pub enum MouseButton {
     Left,
+    #[allow(dead_code)]
     Right,
 }
 
@@ -114,16 +109,29 @@ impl MouseButton {
     }
 }
 
+fn scroll_lines_from_speed(speed: f32) -> i32 {
+    if !speed.is_finite() {
+        return 1;
+    }
+    speed.round().clamp(1.0, 100.0) as i32
+}
+
 /// Translate a single accessibility action into one or more mouse events
 /// posted at the given absolute display coordinates.
 ///
 /// `enabled` is a runtime kill-switch (set to false for `--no-mouse-output`,
 /// tests, or headless environments).
-pub fn dispatch(action: AccessibilityAction, screen_x: f64, screen_y: f64, enabled: bool) {
+pub fn dispatch(
+    action: AccessibilityAction,
+    screen_x: f64,
+    screen_y: f64,
+    enabled: bool,
+    scroll_speed: f32,
+) {
     if !enabled {
         debug!(
-            "mouse output disabled — action {:?} at ({}, {}) would have fired",
-            action, screen_x, screen_y
+            "mouse output disabled — action {:?} at ({}, {}) would have fired, scroll_speed={}",
+            action, screen_x, screen_y, scroll_speed
         );
         return;
     }
@@ -132,15 +140,21 @@ pub fn dispatch(action: AccessibilityAction, screen_x: f64, screen_y: f64, enabl
         AccessibilityAction::Click => {
             platform::click_at(screen_x, screen_y, MouseButton::Left);
         }
-        AccessibilityAction::ScrollUp(lines) => {
+        AccessibilityAction::ScrollUp => {
+            let lines = scroll_lines_from_speed(scroll_speed);
             platform::scroll_at(screen_x, screen_y, lines);
         }
-        AccessibilityAction::ScrollDown(lines) => {
+        AccessibilityAction::ScrollDown => {
+            let lines = scroll_lines_from_speed(scroll_speed);
             platform::scroll_at(screen_x, screen_y, -lines);
         }
         AccessibilityAction::DwellStarted => {
             // Pure signal — no mouse event to post.
             debug!("dwell started at ({}, {})", screen_x, screen_y);
+        }
+        AccessibilityAction::DwellCancelled => {
+            // Pure signal — no mouse event to post.
+            debug!("dwell cancelled at ({}, {})", screen_x, screen_y);
         }
     }
 }
@@ -148,10 +162,20 @@ pub fn dispatch(action: AccessibilityAction, screen_x: f64, screen_y: f64, enabl
 /// Convert a normalized [0, 1] gaze point to absolute display pixels
 /// for the given screen width / height.
 pub fn normalized_to_screen(nx: f32, ny: f32, width: u32, height: u32) -> (f64, f64) {
+    let nx = if nx.is_finite() {
+        nx.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let ny = if ny.is_finite() {
+        ny.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
     let x = (nx as f64) * (width as f64);
     let y = (ny as f64) * (height as f64);
     debug_assert!(x.is_finite() && y.is_finite(), "non-finite screen coords");
-    (x.max(0.0).min(width as f64), y.max(0.0).min(height as f64))
+    (x, y)
 }
 
 #[cfg(test)]
@@ -190,11 +214,11 @@ mod tests {
     #[test]
     fn test_dispatch_no_op_when_disabled() {
         // Should not panic on any variant when disabled.
-        dispatch(AccessibilityAction::None, 100.0, 100.0, false);
-        dispatch(AccessibilityAction::Click, 100.0, 100.0, false);
-        dispatch(AccessibilityAction::ScrollUp(3), 100.0, 100.0, false);
-        dispatch(AccessibilityAction::ScrollDown(3), 100.0, 100.0, false);
-        dispatch(AccessibilityAction::DwellStarted, 100.0, 100.0, false);
+        dispatch(AccessibilityAction::None, 100.0, 100.0, false, 0.0);
+        dispatch(AccessibilityAction::Click, 100.0, 100.0, false, 0.0);
+        dispatch(AccessibilityAction::ScrollUp, 100.0, 100.0, false, 3.0);
+        dispatch(AccessibilityAction::ScrollDown, 100.0, 100.0, false, 3.0);
+        dispatch(AccessibilityAction::DwellStarted, 100.0, 100.0, false, 0.0);
     }
 
     #[test]

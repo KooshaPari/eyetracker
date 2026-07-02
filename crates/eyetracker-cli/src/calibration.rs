@@ -24,15 +24,51 @@ pub struct CalibrationPoint {
 
 /// 9-point calibration grid positions (3x3)
 const CALIBRATION_POINTS: &[CalibrationPoint] = &[
-    CalibrationPoint { x: 0.1, y: 0.1, label: Cow::Borrowed("Top-left") },
-    CalibrationPoint { x: 0.5, y: 0.1, label: Cow::Borrowed("Top-center") },
-    CalibrationPoint { x: 0.9, y: 0.1, label: Cow::Borrowed("Top-right") },
-    CalibrationPoint { x: 0.1, y: 0.5, label: Cow::Borrowed("Mid-left") },
-    CalibrationPoint { x: 0.5, y: 0.5, label: Cow::Borrowed("Center") },
-    CalibrationPoint { x: 0.9, y: 0.5, label: Cow::Borrowed("Mid-right") },
-    CalibrationPoint { x: 0.1, y: 0.9, label: Cow::Borrowed("Bottom-left") },
-    CalibrationPoint { x: 0.5, y: 0.9, label: Cow::Borrowed("Bottom-center") },
-    CalibrationPoint { x: 0.9, y: 0.9, label: Cow::Borrowed("Bottom-right") },
+    CalibrationPoint {
+        x: 0.1,
+        y: 0.1,
+        label: Cow::Borrowed("Top-left"),
+    },
+    CalibrationPoint {
+        x: 0.5,
+        y: 0.1,
+        label: Cow::Borrowed("Top-center"),
+    },
+    CalibrationPoint {
+        x: 0.9,
+        y: 0.1,
+        label: Cow::Borrowed("Top-right"),
+    },
+    CalibrationPoint {
+        x: 0.1,
+        y: 0.5,
+        label: Cow::Borrowed("Mid-left"),
+    },
+    CalibrationPoint {
+        x: 0.5,
+        y: 0.5,
+        label: Cow::Borrowed("Center"),
+    },
+    CalibrationPoint {
+        x: 0.9,
+        y: 0.5,
+        label: Cow::Borrowed("Mid-right"),
+    },
+    CalibrationPoint {
+        x: 0.1,
+        y: 0.9,
+        label: Cow::Borrowed("Bottom-left"),
+    },
+    CalibrationPoint {
+        x: 0.5,
+        y: 0.9,
+        label: Cow::Borrowed("Bottom-center"),
+    },
+    CalibrationPoint {
+        x: 0.9,
+        y: 0.9,
+        label: Cow::Borrowed("Bottom-right"),
+    },
 ];
 
 /// Calibration sample collected at a target point
@@ -80,7 +116,8 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
     // spec clause "system shall dismiss and request retry if
     // insufficient samples collected".
     use eyetracker_inference::calibration::{
-        classify_point, PointOutcome, MAX_RETRIES_PER_POINT,
+        classify_point, CalibrationPoint as InferenceCalibrationPoint,
+        CalibrationSample as InferenceCalibrationSample, PointOutcome, MAX_RETRIES_PER_POINT,
     };
     // Approx 33ms per frame at the 30 FPS calibration polling rate.
     let frame_duration_ms: u64 = 33;
@@ -100,15 +137,23 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
             attempt += 1;
             println!(
                 "  Attempt {}/{} — press Enter when ready...",
-                attempt,
-                MAX_RETRIES_PER_POINT
+                attempt, MAX_RETRIES_PER_POINT
             );
 
             input.clear();
             std::io::stdin().read_line(&mut input)?;
 
             let raw = collect_samples(&mut pipeline, point, Duration::from_secs(3))?;
-            let outcome = classify_point(&raw, frame_duration_ms);
+            let inference_sample = InferenceCalibrationSample {
+                point: InferenceCalibrationPoint {
+                    x: raw.point.x,
+                    y: raw.point.y,
+                    label: raw.point.label.to_string(),
+                },
+                gaze_samples: raw.gaze_samples.clone(),
+                timestamp: raw.timestamp,
+            };
+            let outcome = classify_point(&inference_sample, frame_duration_ms);
             let count = raw.gaze_samples.len();
             println!("  Collected {} samples → {:?}", count, outcome);
 
@@ -144,7 +189,10 @@ pub fn run_calibration(config: &PipelineConfig) -> Result<CalibrationResult> {
 
     println!("\n=== Calibration Complete ===");
     println!("Quality: {:.1}%", quality * 100.0);
-    println!("Success: {}", if success { "Yes" } else { "No - try again" });
+    println!(
+        "Success: {}",
+        if success { "Yes" } else { "No - try again" }
+    );
 
     let result = CalibrationResult {
         samples,
@@ -215,9 +263,7 @@ fn compute_calibration_quality(samples: &[CalibrationSample]) -> f32 {
         let variance: f32 = sample
             .gaze_samples
             .iter()
-            .map(|s| {
-                (s.0 - mean_x).powi(2) + (s.1 - mean_y).powi(2) + (s.2 - mean_z).powi(2)
-            })
+            .map(|s| (s.0 - mean_x).powi(2) + (s.1 - mean_y).powi(2) + (s.2 - mean_z).powi(2))
             .sum::<f32>()
             / count as f32;
 
