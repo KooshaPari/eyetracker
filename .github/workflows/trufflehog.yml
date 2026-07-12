@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
-      - uses: trufflesecurity/trufflehog@9b6b5326bfe25dbd856eccc8a8275eb5dea7bd52
+      - uses: trufflesecurity/trufflehog@8feb77b20aeb64366d106b08f2941287755c173b
         with:
           path: ./
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
