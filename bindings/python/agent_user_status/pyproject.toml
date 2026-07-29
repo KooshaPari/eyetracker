@@ -1,0 +1,38 @@
+[project]
+name = "phenotype-eye-tracker-bindings"
+version = "0.1.0"
+description = "Python bindings for KooshaPari/eyetracker — gaze calibration, eye-state publishers, webcam tracker, cursor-tracker companion."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "KooshaPari" },
+]
+keywords = ["eye-tracking", "gaze", "vision", "phenotype", "eyetracker"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+dependencies = [
+    # None — modules are pure Python / optional native via UniFFI.
+]
+
+[project.optional-dependencies]
+cv = ["opencv-python>=4.8"]
+native = ["eyetracker-rs>=0.1"]  # future UniFFI bindings
+test = ["pytest>=7.0"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agent_user_status*"]
