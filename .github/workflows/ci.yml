@@ -39,6 +39,7 @@ jobs:
       go: ${{ steps.detect.outputs.go }}
       typescript: ${{ steps.detect.outputs.typescript }}
       has_ci_lint: ${{ steps.detect.outputs.has_ci_lint }}
+      has_trunk: ${{ steps.detect.outputs.has_trunk }}
     steps:
       - uses: actions/checkout@v4
       - id: detect
@@ -73,6 +74,13 @@ jobs:
             echo "has_ci_lint=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_ci_lint=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Has trunk config?
+          if [ -f "trunk.yaml" ] || [ -f ".trunk/trunk.yaml" ]; then
+            echo "has_trunk=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_trunk=false" >> "$GITHUB_OUTPUT"
           fi
 
   # ===========================================================================
@@ -255,28 +263,14 @@ jobs:
           fail-on-severity: moderate
 
   # ===========================================================================
-  # STAGE 4: Trunk.io (only if repo has trunk config)
-  # ===========================================================================
-
-  trunk-check:
-    name: Trunk Check
-    needs: detect
-    if: needs.detect.outputs.has_trunk == 'true'
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: trunk-io/trunk-action@v1
-
-  # ===========================================================================
-  # STAGE 5: Branch protection gate — stable names: "ci / lint" + "ci / test"
+  # STAGE 4: Branch protection gate — stable names: "ci / lint" + "ci / test"
   # Re-checks each language job result (they're continue-on-error) and fails
   # this gate if any actual language check fails.
   # ===========================================================================
   lint:
     name: ci / lint
     if: always()
-    needs: [detect, rust, python, go, typescript, security, dependency-review, trunk-check]
+    needs: [detect, rust, python, go, typescript, security, dependency-review]
     runs-on: ubuntu-latest
     steps:
       - name: Lint gate
@@ -291,7 +285,6 @@ jobs:
             "typescript:${{ needs.typescript.result }}" \
             "security:${{ needs.security.result }}" \
             "dep-review:${{ needs.dependency-review.result }}" \
-            "trunk:${{ needs.trunk-check.result }}" \
           ; do
             name="${pair%%:*}"
             result="${pair#*:}"
